@@ -114,6 +114,9 @@ func (a *App) GetBrowserConfig() BrowserConfigResponse {
 	if resp.ChromiumPath == "" {
 		resp.ChromiumPath = a.browser.ResolveChromiumPath()
 	}
+	if resp.UserDataDir == "" {
+		resp.UserDataDir = social.SharedSessionDir()
+	}
 	return resp
 }
 
@@ -122,6 +125,9 @@ func (a *App) ResetBrowserConfig() BrowserConfigResponse {
 	resp := toBrowserConfigResponse(updated.Browser)
 	if resp.ChromiumPath == "" {
 		resp.ChromiumPath = a.browser.ResolveChromiumPath()
+	}
+	if resp.UserDataDir == "" {
+		resp.UserDataDir = social.SharedSessionDir()
 	}
 	return resp
 }
