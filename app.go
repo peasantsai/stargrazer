@@ -14,6 +14,8 @@ import (
 	"stargrazer/internal/scheduler"
 	"stargrazer/internal/social"
 	"stargrazer/internal/workflow"
+
+	wailsRuntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 // App exposes backend methods to the frontend via Wails bindings.
@@ -477,6 +479,22 @@ func (a *App) ExportLogs() string { return string(logger.Export()) }
 func (a *App) ClearLogs()         { logger.Clear() }
 
 // --- Upload / Workflow ---
+
+// SelectFile opens a native file dialog and returns the selected file path.
+func (a *App) SelectFile() string {
+	selection, err := wailsRuntime.OpenFileDialog(a.ctx, wailsRuntime.OpenDialogOptions{
+		Title: "Select file to upload",
+		Filters: []wailsRuntime.FileFilter{
+			{DisplayName: "Images & Videos", Pattern: "*.jpg;*.jpeg;*.png;*.gif;*.webp;*.mp4;*.mov;*.avi;*.webm"},
+			{DisplayName: "All Files", Pattern: "*.*"},
+		},
+	})
+	if err != nil {
+		logger.Error("upload", fmt.Sprintf("File dialog error: %v", err))
+		return ""
+	}
+	return selection
+}
 
 type UploadResponse struct {
 	Success bool   `json:"success"`

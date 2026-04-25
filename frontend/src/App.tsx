@@ -6,7 +6,7 @@ import {
   ImportCookies,
   GetLogs, ExportLogs, ClearLogs, TriggerUpload,
   GetSchedules, CreateSchedule, DeleteSchedule, PauseSchedule, ResumeSchedule,
-  PurgeSession,
+  PurgeSession, SelectFile,
 } from '../wailsjs/go/main/App';
 import type { main } from '../wailsjs/go/models';
 
@@ -314,47 +314,74 @@ function ChatPanel({ messages, browserStatus, loading, onStart, onStop, messages
 }) {
   const isRunning = browserStatus === 'running';
   const [caption, setCaption] = useState('');
-  const [hashtags, setHashtags] = useState('');
-  const [selectedFile, setSelectedFile] = useState<string>('');
+  const [tags, setTags] = useState<string[]>([]);
+  const [tagInput, setTagInput] = useState('');
+  const [selectedFile, setSelectedFile] = useState('');
   const [selectedFileName, setSelectedFileName] = useState('');
   const [selectedPlatforms, setSelectedPlatforms] = useState<Set<string>>(new Set());
   const [uploading, setUploading] = useState(false);
-  const fileRef = useRef<HTMLInputElement>(null);
 
   const togglePlatform = (id: string) => {
-    setSelectedPlatforms(prev => {
-      const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
-      return next;
-    });
+    setSelectedPlatforms(prev => { const n = new Set(prev); n.has(id)?n.delete(id):n.add(id); return n; });
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setSelectedFileName(file.name);
-      // For Wails, we use the file path - in dev mode use the name
-      setSelectedFile(file.name);
+  const handleTagKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if ((e.key === ' ' || e.key === 'Enter' || e.key === ',') && tagInput.trim()) {
+      e.preventDefault();
+      const raw = tagInput.trim().replace(/^#/, '');
+      if (raw && !tags.includes(`#${raw}`)) {
+        setTags(prev => [...prev, `#${raw}`]);
+      }
+      setTagInput('');
+    } else if (e.key === 'Backspace' && !tagInput && tags.length > 0) {
+      setTags(prev => prev.slice(0, -1));
+    }
+  };
+
+  const removeTag = (tag: string) => setTags(prev => prev.filter(t => t !== tag));
+
+  const handleSelectFile = async () => {
+    const path = await SelectFile();
+    if (path) {
+      setSelectedFile(path);
+      // Extract filename from full path
+      const name = path.split(/[/\\]/).pop() || path;
+      setSelectedFileName(name);
     }
   };
 
   const handleSend = async () => {
     if (!isRunning) { addMessage('error', 'Start the browser first.'); return; }
     if (selectedPlatforms.size === 0) { addMessage('error', 'Select at least one platform.'); return; }
-    if (!selectedFile && !caption.trim() && !hashtags.trim()) { addMessage('error', 'Provide at least a file, caption, or hashtags.'); return; }
+    // Include any text still in the tag input
+    const finalTags = [...tags];
+    if (tagInput.trim()) {
+      const raw = tagInput.trim().replace(/^#/, '');
+      if (raw) finalTags.push(`#${raw}`);
+    }
+    if (!selectedFile && !caption.trim() && finalTags.length === 0) {
+      addMessage('error', 'Provide at least a file, caption, or hashtags.'); return;
+    }
 
     setUploading(true);
-    const tags = hashtags.split(/[\s,]+/).map(t => t.startsWith('#') ? t : `#${t}`).filter(t => t.length > 1);
-    addMessage('system', `Uploading to ${[...selectedPlatforms].join(', ')}...`);
+    const platformNames = [...selectedPlatforms].map(id => platforms.find(p => p.id === id)?.name || id).join(', ');
+    addMessage('system', `Uploading to ${platformNames}...`);
+    if (selectedFileName) addMessage('info', `File: ${selectedFileName}`);
+    if (caption.trim()) addMessage('info', `Caption: ${caption.trim()}`);
+    if (finalTags.length > 0) addMessage('info', `Tags: ${finalTags.join(' ')}`);
 
     try {
       const res = await TriggerUpload({
         platforms: [...selectedPlatforms],
         filePath: selectedFile,
-        caption,
-        hashtags: tags,
+        caption: caption.trim(),
+        hashtags: finalTags,
       } as any);
       addMessage(res.success ? 'success' : 'error', res.message);
+      if (res.success) {
+        setCaption(''); setTags([]); setTagInput('');
+        setSelectedFile(''); setSelectedFileName('');
+      }
     } catch (err: any) {
       addMessage('error', `Upload error: ${err?.message || err}`);
     }
@@ -414,15 +441,37 @@ function ChatPanel({ messages, browserStatus, loading, onStart, onStop, messages
           })}
         </div>
 
-        {/* File picker + caption + hashtags */}
+        {/* Upload form */}
         <div className="upload-form">
           <div className="upload-file-row">
-            <button className="btn-secondary upload-file-btn" onClick={() => fileRef.current?.click()}>
+            <button className="btn-secondary upload-file-btn" onClick={handleSelectFile}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
               {selectedFileName || 'Attach file'}
             </button>
-            <input ref={fileRef} type="file" accept="image/*,video/*" onChange={handleFileChange} style={{ display: 'none' }} />
-            <input className="upload-hashtags" type="text" placeholder="#hashtags (space or comma separated)" value={hashtags} onChange={e => setHashtags(e.target.value)} />
+            {selectedFile && (
+              <button className="upload-file-clear" onClick={() => { setSelectedFile(''); setSelectedFileName(''); }} title="Remove file">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            )}
+            {/* Hashtag bubble input */}
+            <div className="tag-input-wrapper">
+              {tags.map(tag => (
+                <span key={tag} className="tag-bubble">
+                  {tag}
+                  <button className="tag-remove" onClick={() => removeTag(tag)}>
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                  </button>
+                </span>
+              ))}
+              <input
+                className="tag-input"
+                type="text"
+                placeholder={tags.length === 0 ? '#hashtags...' : ''}
+                value={tagInput}
+                onChange={e => setTagInput(e.target.value)}
+                onKeyDown={handleTagKeyDown}
+              />
+            </div>
           </div>
           <div className="upload-caption-row">
             <textarea className="upload-caption" placeholder="Write your caption..." rows={2} value={caption} onChange={e => setCaption(e.target.value)} />

@@ -308,9 +308,40 @@ input, textarea, select { font-family: inherit; font-size: inherit; }
 .upload-form { display: flex; flex-direction: column; gap: 8px; }
 .upload-file-row { display: flex; gap: 8px; align-items: center; }
 .upload-file-btn { white-space: nowrap; font-size: 12px; padding: 8px 12px; }
-.upload-hashtags { flex: 1; padding: 8px 12px; background: var(--bg-tertiary); border: 1px solid var(--border-color); border-radius: 8px; color: var(--text-primary); font-size: 13px; outline: none; }
-.upload-hashtags:focus { border-color: var(--accent); }
-.upload-hashtags::placeholder { color: var(--text-secondary); }
+/* Tag bubble input */
+.tag-input-wrapper {
+  flex: 1; display: flex; flex-wrap: wrap; align-items: center; gap: 4px;
+  padding: 5px 8px; background: var(--bg-tertiary); border: 1px solid var(--border-color);
+  border-radius: 8px; min-height: 34px; cursor: text; transition: border-color 0.15s;
+}
+.tag-input-wrapper:focus-within { border-color: var(--accent); }
+
+.tag-bubble {
+  display: inline-flex; align-items: center; gap: 3px;
+  padding: 2px 8px; background: var(--accent-subtle); color: var(--accent);
+  border-radius: 12px; font-size: 12px; font-weight: 500;
+  animation: tag-pop 0.15s ease;
+}
+@keyframes tag-pop { from { transform: scale(0.8); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
+.tag-remove {
+  background: none; color: var(--accent); padding: 0; display: flex;
+  align-items: center; border-radius: 50%; transition: color 0.15s;
+}
+.tag-remove:hover { color: var(--error); }
+
+.tag-input {
+  flex: 1; min-width: 80px; border: none; background: transparent;
+  color: var(--text-primary); font-size: 13px; outline: none; padding: 2px 0;
+}
+.tag-input::placeholder { color: var(--text-secondary); }
+
+.upload-file-clear {
+  background: transparent; color: var(--text-secondary); padding: 4px;
+  border-radius: 4px; display: flex; align-items: center; transition: color 0.15s;
+}
+.upload-file-clear:hover { color: var(--error); }
+
 .upload-caption-row { display: flex; gap: 8px; align-items: flex-end; }
 .upload-caption { flex: 1; padding: 10px 12px; background: var(--bg-tertiary); border: 1px solid var(--border-color); border-radius: 10px; color: var(--text-primary); font-size: 13px; outline: none; resize: none; font-family: inherit; }
 .upload-caption:focus { border-color: var(--accent); }
