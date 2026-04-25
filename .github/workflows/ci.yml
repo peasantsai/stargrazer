@@ -21,19 +21,17 @@ jobs:
           node-version: '24'
 
       - name: Go vet
-        working-directory: ./stargrazer
         run: go vet ./...
 
       - name: Go build check
-        working-directory: ./stargrazer
         run: go build ./...
 
       - name: Frontend install
-        working-directory: ./stargrazer/frontend
+        working-directory: ./frontend
         run: npm ci
 
       - name: Frontend type check
-        working-directory: ./stargrazer/frontend
+        working-directory: ./frontend
         run: npx tsc --noEmit
 
   build:
@@ -48,7 +46,6 @@ jobs:
             goarch: amd64
             chromium_url: "https://github.com/ungoogled-software/ungoogled-chromium-portablelinux/releases/download/146.0.7680.177-1/ungoogled-chromium-146.0.7680.177-1-x86_64_linux.tar.xz"
             chromium_cache_key: chromium-linux-x64
-            chromium_binary: chrome
 
           - os: ubuntu-latest
             platform: linux/arm64
@@ -56,7 +53,6 @@ jobs:
             goarch: arm64
             chromium_url: "https://github.com/ungoogled-software/ungoogled-chromium-portablelinux/releases/download/147.0.7727.55-1/ungoogled-chromium-147.0.7727.55-1-arm64_linux.tar.xz"
             chromium_cache_key: chromium-linux-arm64
-            chromium_binary: chrome
 
           - os: windows-latest
             platform: windows/amd64
@@ -64,7 +60,6 @@ jobs:
             goarch: amd64
             chromium_url: "https://github.com/ungoogled-software/ungoogled-chromium-windows/releases/download/147.0.7727.101-1.1/ungoogled-chromium_147.0.7727.101-1.1_installer_x64.exe"
             chromium_cache_key: chromium-windows-x64
-            chromium_binary: chrome.exe
 
           - os: windows-latest
             platform: windows/arm64
@@ -72,7 +67,6 @@ jobs:
             goarch: arm64
             chromium_url: "https://github.com/ungoogled-software/ungoogled-chromium-windows/releases/download/147.0.7727.101-1.1/ungoogled-chromium_147.0.7727.101-1.1_installer_arm64.exe"
             chromium_cache_key: chromium-windows-arm64
-            chromium_binary: chrome.exe
 
           - os: macos-latest
             platform: darwin/arm64
@@ -80,7 +74,6 @@ jobs:
             goarch: arm64
             chromium_url: "https://github.com/claudiodekker/ungoogled-chromium-macos/releases/download/130.0.6723.91-1.1/ungoogled-chromium_130.0.6723.91-1.1_arm64-macos-signed.dmg"
             chromium_cache_key: chromium-macos-arm64
-            chromium_binary: "Chromium.app/Contents/MacOS/Chromium"
 
           - os: macos-13
             platform: darwin/amd64
@@ -88,7 +81,6 @@ jobs:
             goarch: amd64
             chromium_url: "https://github.com/claudiodekker/ungoogled-chromium-macos/releases/download/130.0.6723.91-1.1/ungoogled-chromium_130.0.6723.91-1.1_x86-64-macos-signed.dmg"
             chromium_cache_key: chromium-macos-x64
-            chromium_binary: "Chromium.app/Contents/MacOS/Chromium"
 
     runs-on: ${{ matrix.os }}
     steps:
@@ -102,61 +94,55 @@ jobs:
         with:
           node-version: '24'
 
-      # Cache the downloaded & cleaned Chromium browser
       - name: Cache Chromium
         id: chromium-cache
         uses: actions/cache@v4
         with:
-          path: stargrazer/assets/chromium-bundle
+          path: assets/chromium-bundle
           key: ${{ matrix.chromium_cache_key }}-v1
 
       - name: Download Chromium
         if: steps.chromium-cache.outputs.cache-hit != 'true'
         shell: bash
         run: |
-          mkdir -p stargrazer/assets/chromium-bundle
-          cd /tmp
-          FILENAME="chromium-download"
+          mkdir -p assets/chromium-bundle
+          FILENAME="/tmp/chromium-download"
           curl -L -o "$FILENAME" "${{ matrix.chromium_url }}"
 
           if [[ "${{ matrix.goos }}" == "linux" ]]; then
-            tar xf "$FILENAME" -C stargrazer/assets/chromium-bundle --strip-components=1 || \
-            tar xJf "$FILENAME" -C stargrazer/assets/chromium-bundle --strip-components=1
+            mkdir -p /tmp/chromium-extract
+            tar xf "$FILENAME" -C /tmp/chromium-extract 2>/dev/null || tar xJf "$FILENAME" -C /tmp/chromium-extract 2>/dev/null
+            CHROME_DIR=$(find /tmp/chromium-extract -name "chrome" -type f -exec dirname {} \; | head -1)
+            if [ -n "$CHROME_DIR" ]; then
+              cp -R "$CHROME_DIR"/* assets/chromium-bundle/
+            else
+              cp -R /tmp/chromium-extract/*/* assets/chromium-bundle/ 2>/dev/null || cp -R /tmp/chromium-extract/* assets/chromium-bundle/
+            fi
           elif [[ "${{ matrix.goos }}" == "darwin" ]]; then
-            # Mount DMG and copy Chromium.app
             hdiutil attach "$FILENAME" -mountpoint /tmp/chromium-dmg -nobrowse
-            cp -R /tmp/chromium-dmg/Chromium.app stargrazer/assets/chromium-bundle/
+            cp -R /tmp/chromium-dmg/Chromium.app assets/chromium-bundle/
             hdiutil detach /tmp/chromium-dmg
           elif [[ "${{ matrix.goos }}" == "windows" ]]; then
-            # Windows installer — extract with 7z
-            7z x "$FILENAME" -o"$GITHUB_WORKSPACE/stargrazer/assets/chromium-bundle" -y || true
+            7z x "$FILENAME" -o"$GITHUB_WORKSPACE/assets/chromium-bundle" -y || true
           fi
 
       - name: Clean Chromium bundle
         if: steps.chromium-cache.outputs.cache-hit != 'true'
         shell: bash
         run: |
-          cd stargrazer/assets/chromium-bundle
-          # Remove non-essential files to reduce cache size
-          rm -rf swiftshader VisualElements default_apps MEIPreload
+          cd assets/chromium-bundle
+          rm -rf swiftshader VisualElements default_apps MEIPreload Dictionaries
           rm -f chrome_200_percent.pak notification_helper* elevation_service* chrome_proxy* chrome_pwa_launcher* chrome_wer*
           rm -f *.debug *.pdb
-          # Keep only English locale
           if [ -d locales ]; then
             find locales -type f ! -name 'en-US.pak' -delete 2>/dev/null || true
           fi
 
-      # Install Wails CLI
       - name: Install Wails
         run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
 
-      # Build
       - name: Build Stargrazer
-        working-directory: ./stargrazer
         shell: bash
-        env:
-          GOOS: ${{ matrix.goos }}
-          GOARCH: ${{ matrix.goarch }}
         run: |
           if [[ "${{ matrix.goos }}" == "windows" ]]; then
             wails build -platform ${{ matrix.platform }} -o stargrazer.exe
@@ -168,6 +154,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: stargrazer-${{ matrix.goos }}-${{ matrix.goarch }}
-          path: |
-            stargrazer/build/bin/
+          path: build/bin/
           retention-days: 7

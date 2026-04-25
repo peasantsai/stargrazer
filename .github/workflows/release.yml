@@ -11,7 +11,6 @@ permissions:
 env:
   GO_VERSION: '1.23'
   NODE_VERSION: '24'
-  APP_NAME: stargrazer
 
 jobs:
   create-release-branch:
@@ -93,45 +92,43 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
 
-      # Cache Chromium
       - name: Cache Chromium
         id: chromium-cache
         uses: actions/cache@v4
         with:
-          path: stargrazer/assets/chromium-bundle
+          path: assets/chromium-bundle
           key: ${{ matrix.chromium_cache_key }}-v1
 
       - name: Download Chromium
         if: steps.chromium-cache.outputs.cache-hit != 'true'
         shell: bash
         run: |
-          mkdir -p stargrazer/assets/chromium-bundle
+          mkdir -p assets/chromium-bundle
           FILENAME="/tmp/chromium-download"
           curl -L -o "$FILENAME" "${{ matrix.chromium_url }}"
 
           if [[ "${{ matrix.goos }}" == "linux" ]]; then
             mkdir -p /tmp/chromium-extract
             tar xf "$FILENAME" -C /tmp/chromium-extract 2>/dev/null || tar xJf "$FILENAME" -C /tmp/chromium-extract 2>/dev/null
-            # Move contents — handle nested dirs
             CHROME_DIR=$(find /tmp/chromium-extract -name "chrome" -type f -exec dirname {} \; | head -1)
             if [ -n "$CHROME_DIR" ]; then
-              cp -R "$CHROME_DIR"/* stargrazer/assets/chromium-bundle/
+              cp -R "$CHROME_DIR"/* assets/chromium-bundle/
             else
-              cp -R /tmp/chromium-extract/*/* stargrazer/assets/chromium-bundle/ 2>/dev/null || cp -R /tmp/chromium-extract/* stargrazer/assets/chromium-bundle/
+              cp -R /tmp/chromium-extract/*/* assets/chromium-bundle/ 2>/dev/null || cp -R /tmp/chromium-extract/* assets/chromium-bundle/
             fi
           elif [[ "${{ matrix.goos }}" == "darwin" ]]; then
             hdiutil attach "$FILENAME" -mountpoint /tmp/chromium-dmg -nobrowse
-            cp -R /tmp/chromium-dmg/Chromium.app stargrazer/assets/chromium-bundle/
+            cp -R /tmp/chromium-dmg/Chromium.app assets/chromium-bundle/
             hdiutil detach /tmp/chromium-dmg
           elif [[ "${{ matrix.goos }}" == "windows" ]]; then
-            7z x "$FILENAME" -o"$GITHUB_WORKSPACE/stargrazer/assets/chromium-bundle" -y || true
+            7z x "$FILENAME" -o"$GITHUB_WORKSPACE/assets/chromium-bundle" -y || true
           fi
 
       - name: Clean Chromium bundle
         if: steps.chromium-cache.outputs.cache-hit != 'true'
         shell: bash
         run: |
-          cd stargrazer/assets/chromium-bundle
+          cd assets/chromium-bundle
           rm -rf swiftshader VisualElements default_apps MEIPreload Dictionaries
           rm -f chrome_200_percent.pak notification_helper* elevation_service* chrome_proxy* chrome_pwa_launcher* chrome_wer*
           rm -f *.debug *.pdb
@@ -141,7 +138,6 @@ jobs:
           echo "Chromium bundle size:"
           du -sh .
 
-      # Install tools
       - name: Install Wails
         shell: bash
         run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
@@ -155,26 +151,20 @@ jobs:
         shell: bash
         run: choco install nsis -y
 
-      # Build
       - name: Build
-        working-directory: ./stargrazer
         shell: bash
         run: |
           VERSION=${GITHUB_REF#refs/tags/v}
           if [[ "${{ matrix.goos }}" == "windows" ]]; then
             wails build -platform ${{ matrix.platform }} -nsis -o stargrazer.exe -ldflags "-X main.version=$VERSION"
-          elif [[ "${{ matrix.goos }}" == "darwin" ]]; then
-            wails build -platform ${{ matrix.platform }} -o stargrazer -ldflags "-X main.version=$VERSION"
           else
             wails build -platform ${{ matrix.platform }} -o stargrazer -ldflags "-X main.version=$VERSION"
           fi
 
       - name: Compress with UPX (Linux)
         if: matrix.goos == 'linux'
-        working-directory: ./stargrazer
         run: upx --best build/bin/stargrazer || true
 
-      # Package
       - name: Package release artifact
         shell: bash
         run: |
@@ -183,16 +173,14 @@ jobs:
           mkdir -p dist
 
           if [[ "${{ matrix.goos }}" == "windows" ]]; then
-            # Include NSIS installer if built
-            cp stargrazer/build/bin/*installer* "dist/${ARTIFACT}-setup.exe" 2>/dev/null || true
-            # Also zip the portable exe + chromium
-            cd stargrazer/build/bin
+            cp build/bin/*installer* "dist/${ARTIFACT}-setup.exe" 2>/dev/null || true
+            cd build/bin
             7z a "$GITHUB_WORKSPACE/dist/${ARTIFACT}.zip" . -r
           elif [[ "${{ matrix.goos }}" == "darwin" ]]; then
-            cd stargrazer/build/bin
+            cd build/bin
             zip -r "$GITHUB_WORKSPACE/dist/${ARTIFACT}.zip" .
           else
-            cd stargrazer/build/bin
+            cd build/bin
             tar czf "$GITHUB_WORKSPACE/dist/${ARTIFACT}.tar.gz" .
           fi
 
@@ -224,7 +212,6 @@ jobs:
           ls -lh release-files/
 
       - name: Generate release notes
-        id: notes
         run: |
           VERSION=${GITHUB_REF#refs/tags/}
           cat > release-notes.md << 'NOTES'
@@ -273,7 +260,6 @@ jobs:
           *Built with [Wails v2](https://wails.io) + Go + React + TypeScript*
           NOTES
 
-          # Replace $VERSION placeholder
           sed -i "s/\$VERSION/$VERSION/g" release-notes.md
 
       - name: Create GitHub Release
