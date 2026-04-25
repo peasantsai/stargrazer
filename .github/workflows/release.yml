@@ -92,6 +92,12 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
 
+      - name: Install Linux dependencies
+        if: matrix.goos == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.0-dev gcc-aarch64-linux-gnu
+
       - name: Cache Chromium
         id: chromium-cache
         uses: actions/cache@v4
@@ -153,8 +159,14 @@ jobs:
 
       - name: Build
         shell: bash
+        env:
+          CGO_ENABLED: 1
         run: |
           VERSION=${GITHUB_REF#refs/tags/v}
+          if [[ "${{ matrix.platform }}" == "linux/arm64" ]]; then
+            export CC=aarch64-linux-gnu-gcc
+          fi
+
           if [[ "${{ matrix.goos }}" == "windows" ]]; then
             wails build -platform ${{ matrix.platform }} -nsis -o stargrazer.exe -ldflags "-X main.version=$VERSION"
           else
