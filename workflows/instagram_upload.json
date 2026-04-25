@@ -1,0 +1,78 @@
+{
+  "id": "instagram_upload",
+  "platform": "instagram",
+  "name": "Instagram Photo Upload",
+  "description": "Upload a photo with caption and hashtags to Instagram via web",
+  "steps": [
+    {
+      "type": "navigate",
+      "description": "Open Instagram",
+      "value": "https://www.instagram.com/"
+    },
+    {
+      "type": "wait",
+      "description": "Wait for page to load",
+      "selector": "svg[aria-label='New post']",
+      "timeout": 10000
+    },
+    {
+      "type": "click",
+      "description": "Click the new post button",
+      "selector": "svg[aria-label='New post']"
+    },
+    {
+      "type": "wait",
+      "description": "Wait for creation dialog",
+      "selector": "div[role='dialog']",
+      "timeout": 5000
+    },
+    {
+      "type": "upload_file",
+      "description": "Upload the media file",
+      "selector": "div[role='dialog'] input[type='file']",
+      "value": "{{file}}"
+    },
+    {
+      "type": "wait",
+      "description": "Wait for file to process",
+      "timeout": 3000
+    },
+    {
+      "type": "click",
+      "description": "Click Next button",
+      "selector": "div[role='dialog'] button:has-text('Next')"
+    },
+    {
+      "type": "wait",
+      "description": "Wait for filters screen",
+      "timeout": 2000
+    },
+    {
+      "type": "click",
+      "description": "Click Next past filters",
+      "selector": "div[role='dialog'] button:has-text('Next')"
+    },
+    {
+      "type": "wait",
+      "description": "Wait for caption input",
+      "selector": "div[role='dialog'] textarea[aria-label='Write a caption...']",
+      "timeout": 5000
+    },
+    {
+      "type": "type",
+      "description": "Enter caption and hashtags",
+      "selector": "div[role='dialog'] textarea[aria-label='Write a caption...']",
+      "value": "{{caption}}"
+    },
+    {
+      "type": "click",
+      "description": "Click Share",
+      "selector": "div[role='dialog'] button:has-text('Share')"
+    },
+    {
+      "type": "wait",
+      "description": "Wait for upload to complete",
+      "timeout": 15000
+    }
+  ]
+}
