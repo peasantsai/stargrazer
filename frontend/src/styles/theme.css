@@ -1,0 +1,82 @@
+/* ============================================================
+   Stargrazer Theme System
+   Usage: <html data-theme="dark"> or <html data-theme="light">
+   All colors are CSS custom properties — consumed everywhere.
+   ============================================================ */
+
+/* --- Dark Theme (default) --- */
+:root,
+[data-theme="dark"] {
+  --bg-primary: #0f0f0f;
+  --bg-secondary: #1a1a1a;
+  --bg-tertiary: #242424;
+  --bg-hover: #2a2a2a;
+  --bg-elevated: #2e2e2e;
+
+  --border-color: #333;
+  --border-subtle: #2a2a2a;
+
+  --text-primary: #e8e8e8;
+  --text-secondary: #999;
+  --text-tertiary: #666;
+
+  --accent: #7c5cfc;
+  --accent-hover: #6a4ce0;
+  --accent-subtle: rgba(124, 92, 252, 0.15);
+
+  --success: #34d399;
+  --success-subtle: rgba(52, 211, 153, 0.1);
+  --error: #f87171;
+  --error-subtle: rgba(248, 113, 113, 0.1);
+  --warning: #fbbf24;
+  --warning-subtle: rgba(251, 191, 36, 0.1);
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
+
+  --scrollbar-thumb: rgba(255, 255, 255, 0.08);
+  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.15);
+
+  --overlay-bg: rgba(0, 0, 0, 0.6);
+
+  --sidebar-width: 260px;
+}
+
+/* --- Light Theme --- */
+[data-theme="light"] {
+  --bg-primary: #f5f5f5;
+  --bg-secondary: #ffffff;
+  --bg-tertiary: #eaeaea;
+  --bg-hover: #e0e0e0;
+  --bg-elevated: #ffffff;
+
+  --border-color: #d4d4d4;
+  --border-subtle: #e5e5e5;
+
+  --text-primary: #1a1a1a;
+  --text-secondary: #6b6b6b;
+  --text-tertiary: #999;
+
+  --accent: #6d4aed;
+  --accent-hover: #5b38d4;
+  --accent-subtle: rgba(109, 74, 237, 0.1);
+
+  --success: #16a34a;
+  --success-subtle: rgba(22, 163, 74, 0.08);
+  --error: #dc2626;
+  --error-subtle: rgba(220, 38, 38, 0.08);
+  --warning: #d97706;
+  --warning-subtle: rgba(217, 119, 6, 0.08);
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.06);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.12);
+
+  --scrollbar-thumb: rgba(0, 0, 0, 0.12);
+  --scrollbar-thumb-hover: rgba(0, 0, 0, 0.22);
+
+  --overlay-bg: rgba(0, 0, 0, 0.3);
+
+  --sidebar-width: 260px;
+}
