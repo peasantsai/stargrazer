@@ -78,6 +78,10 @@ export function ResumeSchedule(arg1) {
   return window['go']['main']['App']['ResumeSchedule'](arg1);
 }
 
+export function SelectFile() {
+  return window['go']['main']['App']['SelectFile']();
+}
+
 export function StartBrowser() {
   return window['go']['main']['App']['StartBrowser']();
 }

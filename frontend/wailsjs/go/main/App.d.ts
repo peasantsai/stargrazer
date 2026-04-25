@@ -41,6 +41,8 @@ export function RestartBrowser():Promise<main.BrowserStatusResponse>;
 
 export function ResumeSchedule(arg1:string):Promise<main.ScheduleResponse>;
 
+export function SelectFile():Promise<string>;
+
 export function StartBrowser():Promise<main.BrowserStatusResponse>;
 
 export function StopBrowser():Promise<main.BrowserStatusResponse>;
