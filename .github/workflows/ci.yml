@@ -161,10 +161,15 @@ jobs:
             export CC=aarch64-linux-gnu-gcc
           fi
 
+          TAGS=""
+          if [[ "${{ matrix.goos }}" == "linux" ]]; then
+            TAGS="-tags webkit2_41"
+          fi
+
           if [[ "${{ matrix.goos }}" == "windows" ]]; then
-            wails build -platform ${{ matrix.platform }} -o stargrazer.exe
+            wails build -platform ${{ matrix.platform }} -o stargrazer.exe $TAGS
           else
-            wails build -platform ${{ matrix.platform }} -o stargrazer
+            wails build -platform ${{ matrix.platform }} -o stargrazer $TAGS
           fi
 
       - name: Bundle Chromium with build

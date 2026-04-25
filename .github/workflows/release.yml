@@ -167,10 +167,15 @@ jobs:
             export CC=aarch64-linux-gnu-gcc
           fi
 
+          TAGS=""
+          if [[ "${{ matrix.goos }}" == "linux" ]]; then
+            TAGS="-tags webkit2_41"
+          fi
+
           if [[ "${{ matrix.goos }}" == "windows" ]]; then
-            wails build -platform ${{ matrix.platform }} -nsis -o stargrazer.exe -ldflags "-X main.version=$VERSION"
+            wails build -platform ${{ matrix.platform }} -nsis -o stargrazer.exe -ldflags "-X main.version=$VERSION" $TAGS
           else
-            wails build -platform ${{ matrix.platform }} -o stargrazer -ldflags "-X main.version=$VERSION"
+            wails build -platform ${{ matrix.platform }} -o stargrazer -ldflags "-X main.version=$VERSION" $TAGS
           fi
 
       - name: Compress with UPX (Linux)
