@@ -20,12 +20,6 @@ jobs:
         with:
           node-version: '24'
 
-      - name: Go vet
-        run: go vet ./...
-
-      - name: Go build check
-        run: go build ./...
-
       - name: Frontend install
         working-directory: ./frontend
         run: npm ci
@@ -33,6 +27,16 @@ jobs:
       - name: Frontend type check
         working-directory: ./frontend
         run: npx tsc --noEmit
+
+      - name: Frontend build
+        working-directory: ./frontend
+        run: npm run build
+
+      - name: Go vet
+        run: go vet ./...
+
+      - name: Go build check
+        run: go build ./...
 
   build:
     needs: lint-and-test
