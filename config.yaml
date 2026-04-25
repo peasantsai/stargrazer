@@ -1,0 +1,66 @@
+# Stargrazer — Default Configuration
+# Optimized for stealth browsing and automation via Chrome DevTools Protocol.
+# Values here are loaded at startup and can be overridden via CLI flags or the UI.
+
+# App window settings.
+window:
+  title: "Stargrazer"
+  width: 1024
+  height: 768
+  min_width: 800
+  min_height: 600
+
+# Scheduler settings.
+scheduler:
+  enabled: true
+  default_keepalive_interval: "0 */12 * * *"  # Every 12 hours
+
+browser:
+  # Path to Chromium binary. Leave empty to auto-detect the bundled browser.
+  chromium_path: ""
+
+  # Chrome DevTools Protocol port.
+  cdp_port: 9222
+
+  # Run browser without a visible window.
+  headless: false
+
+  # Persistent profile directory. Leave empty for a temporary profile per session.
+  user_data_dir: ""
+
+  # Browser window dimensions.
+  window_width: 1280
+  window_height: 900
+
+  # Chromium flags — tuned for stealth and automation.
+  # These hide automation signals, disable telemetry, and optimize for CDP control.
+  extra_flags:
+    # --- Stealth & anti-detection ---
+    #- "--disable-blink-features=AutomationControlled"   # Hide navigator.webdriver flag
+    - "--disable-features=AutomationControlled"          # Remove automation infobar trigger
+    - "--disable-infobars"                               # Suppress "Chrome is being controlled" bar
+    - "--disable-background-networking"                  # No background network requests
+    - "--disable-client-side-phishing-detection"         # No phishing detection callbacks
+    - "--disable-component-update"                       # Prevent component auto-updates
+    - "--disable-default-apps"                           # Skip default app installation
+    - "--disable-domain-reliability"                     # No domain reliability monitoring
+    - "--disable-hang-monitor"                           # No unresponsive page dialog
+    - "--disable-sync"                                   # No Google account sync
+    - "--disable-translate"                              # No translation bar
+    # Note: --disable-extensions removed — cookies extension must stay active
+    - "--metrics-recording-only"                         # Record metrics but don't send
+    - "--no-pings"                                       # Disable hyperlink auditing pings
+    - "--safebrowsing-disable-auto-update"               # No Safe Browsing update requests
+
+    # --- Automation-friendly ---
+    - "--disable-popup-blocking"                         # Allow CDP-triggered popups
+    - "--disable-prompt-on-repost"                       # No form resubmission dialog
+    - "--disable-ipc-flooding-protection"                # Allow rapid CDP commands
+    - "--disable-renderer-backgrounding"                 # Keep renderer at full priority
+    - "--disable-background-timer-throttling"            # No timer throttling in background tabs
+    - "--disable-backgrounding-occluded-windows"         # Keep occluded windows active
+
+    # --- Display ---
+    - "--force-dark-mode"                                # Dark mode for browser chrome
+    - "--enable-features=WebUIDarkMode"                  # Dark mode for internal pages
+    - "--disable-notifications"                          # Block notification permission prompts
