@@ -96,7 +96,7 @@ jobs:
         if: matrix.goos == 'linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.0-dev gcc-aarch64-linux-gnu
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev gcc-aarch64-linux-gnu pkg-config
 
       - name: Cache Chromium
         id: chromium-cache
@@ -176,6 +176,13 @@ jobs:
       - name: Compress with UPX (Linux)
         if: matrix.goos == 'linux'
         run: upx --best build/bin/stargrazer || true
+
+      - name: Bundle Chromium with build
+        shell: bash
+        run: |
+          mkdir -p build/bin/assets/chromium-bundle
+          cp -R assets/chromium-bundle/* build/bin/assets/chromium-bundle/ 2>/dev/null || true
+          cp -R assets/cookies-extension build/bin/assets/cookies-extension 2>/dev/null || true
 
       - name: Package release artifact
         shell: bash
