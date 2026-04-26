@@ -5,16 +5,16 @@ import { PLATFORM_ICONS, PLATFORM_COLORS } from '../constants/platforms';
 import { HamburgerBtn } from './HamburgerBtn';
 
 interface Props {
-  messages: ChatMessage[];
-  browserStatus: string;
-  loading: boolean;
-  onStart: () => void;
-  onStop: () => void;
-  messagesEndRef: React.RefObject<HTMLDivElement>;
-  sidebarOpen: boolean;
-  onToggleSidebar: () => void;
-  platforms: PlatformResponse[];
-  addMessage: (type: ChatMessage['type'], text: string) => void;
+  readonly messages: ChatMessage[];
+  readonly browserStatus: string;
+  readonly loading: boolean;
+  readonly onStart: () => void;
+  readonly onStop: () => void;
+  readonly messagesEndRef: React.RefObject<HTMLDivElement>;
+  readonly sidebarOpen: boolean;
+  readonly onToggleSidebar: () => void;
+  readonly platforms: PlatformResponse[];
+  readonly addMessage: (type: ChatMessage['type'], text: string) => void;
 }
 
 export function ChatPanel({

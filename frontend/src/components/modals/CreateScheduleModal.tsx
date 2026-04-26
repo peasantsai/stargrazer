@@ -4,9 +4,9 @@ import type { PlatformResponse, CreateScheduleRequest } from '../../types';
 import { PLATFORM_ICONS } from '../../constants/platforms';
 
 interface Props {
-  platforms: PlatformResponse[];
-  onCreated: () => void;
-  onCancel: () => void;
+  readonly platforms: PlatformResponse[];
+  readonly onCreated: () => void;
+  readonly onCancel: () => void;
 }
 
 const INTERVAL_MAP: Record<string, string> = {
@@ -64,9 +64,15 @@ export function CreateScheduleModal({ platforms, onCreated, onCancel }: Props) {
       className="modal-overlay"
       onClick={onCancel}
       onKeyDown={e => { if (e.key === 'Escape') onCancel(); }}
-      role="presentation"
     >
-      <div className="modal-content" style={{ width: 500 }} onClick={e => e.stopPropagation()}>
+      <div
+        className="modal-content"
+        style={{ width: 500 }}
+        role="dialog"
+        aria-modal="true"
+        onClick={e => e.stopPropagation()}
+        onKeyDown={e => e.stopPropagation()}
+      >
         <div className="modal-header">
           <h3>Create Schedule</h3>
           <button className="modal-close" onClick={onCancel} aria-label="Close">

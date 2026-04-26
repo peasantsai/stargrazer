@@ -13,10 +13,10 @@ function statusTextClass(status: string): string {
 }
 
 interface Props {
-  job: ScheduleResponse;
-  onClose: () => void;
-  onDelete: (id: string) => void;
-  onPauseResume: (j: ScheduleResponse) => void;
+  readonly job: ScheduleResponse;
+  readonly onClose: () => void;
+  readonly onDelete: (id: string) => void;
+  readonly onPauseResume: (j: ScheduleResponse) => void;
 }
 
 export function ScheduleDetailModal({ job, onClose, onDelete, onPauseResume }: Props) {
@@ -25,9 +25,14 @@ export function ScheduleDetailModal({ job, onClose, onDelete, onPauseResume }: P
       className="modal-overlay"
       onClick={onClose}
       onKeyDown={e => { if (e.key === 'Escape') onClose(); }}
-      role="presentation"
     >
-      <div className="modal-content" onClick={e => e.stopPropagation()}>
+      <div
+        className="modal-content"
+        role="dialog"
+        aria-modal="true"
+        onClick={e => e.stopPropagation()}
+        onKeyDown={e => e.stopPropagation()}
+      >
         <div className="modal-header">
           <h3>{job.name}</h3>
           <button className="modal-close" onClick={onClose} aria-label="Close">

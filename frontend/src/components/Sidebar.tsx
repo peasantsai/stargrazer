@@ -4,15 +4,15 @@ import { PLATFORM_ICONS, PLATFORM_IDS } from '../constants/platforms';
 import { AccountModal } from './modals/AccountModal';
 
 interface Props {
-  view: View;
-  setView: (v: View) => void;
-  browserStatus: string;
-  open: boolean;
-  onToggle: () => void;
-  theme: Theme;
-  setTheme: (t: Theme) => void;
-  account: AccountInfo;
-  updateAccount: (partial: Partial<AccountInfo>) => void;
+  readonly view: View;
+  readonly setView: (v: View) => void;
+  readonly browserStatus: string;
+  readonly open: boolean;
+  readonly onToggle: () => void;
+  readonly theme: Theme;
+  readonly setTheme: (t: Theme) => void;
+  readonly account: AccountInfo;
+  readonly updateAccount: (partial: Partial<AccountInfo>) => void;
 }
 
 const PLATFORM_LABELS: Record<string, string> = {

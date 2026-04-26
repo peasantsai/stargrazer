@@ -11,11 +11,11 @@ import { PLATFORM_ICONS } from '../constants/platforms';
 import { HamburgerBtn } from './HamburgerBtn';
 
 interface Props {
-  platformId: string;
-  platformName: string;
-  sidebarOpen: boolean;
-  onToggleSidebar: () => void;
-  addMessage: (type: ChatMessage['type'], text: string) => void;
+  readonly platformId: string;
+  readonly platformName: string;
+  readonly sidebarOpen: boolean;
+  readonly onToggleSidebar: () => void;
+  readonly addMessage: (type: ChatMessage['type'], text: string) => void;
 }
 
 type Tab = 'define' | 'execute' | 'schedule';
@@ -40,13 +40,13 @@ function emptyAutomation(platformId: string): Omit<AutomationData, 'id' | 'creat
 function StepRow({
   step, index, total, onChange, onRemove, onMoveUp, onMoveDown,
 }: {
-  step: AutomationStepData;
-  index: number;
-  total: number;
-  onChange: (s: AutomationStepData) => void;
-  onRemove: () => void;
-  onMoveUp: () => void;
-  onMoveDown: () => void;
+  readonly step: AutomationStepData;
+  readonly index: number;
+  readonly total: number;
+  readonly onChange: (s: AutomationStepData) => void;
+  readonly onRemove: () => void;
+  readonly onMoveUp: () => void;
+  readonly onMoveDown: () => void;
 }) {
   const actionMeta = AUTOMATION_ACTIONS.find(a => a.value === step.action);
 
@@ -114,10 +114,10 @@ function StepRow({
 
 /* ── Define tab ── */
 function DefineTab({ platformId, automations, onSaved, onDeleted }: {
-  platformId: string;
-  automations: AutomationData[];
-  onSaved: () => void;
-  onDeleted: (id: string) => void;
+  readonly platformId: string;
+  readonly automations: AutomationData[];
+  readonly onSaved: () => void;
+  readonly onDeleted: (id: string) => void;
 }) {
   const [editing, setEditing] = useState<Partial<AutomationData> | null>(null);
   const [saving, setSaving] = useState(false);
@@ -192,7 +192,7 @@ function DefineTab({ platformId, automations, onSaved, onDeleted }: {
           />
         </div>
         <div className="automation-steps-label">
-          Steps
+          Steps{' '}
           <button className="btn-secondary" style={{ marginLeft: 8, padding: '4px 10px', fontSize: 12 }} onClick={addStep}>
             + Add Step
           </button>
@@ -203,7 +203,7 @@ function DefineTab({ platformId, automations, onSaved, onDeleted }: {
           <div className="automation-steps">
             {(editing.steps ?? []).map((step, i) => (
               <StepRow
-                key={`step-${i}`}
+                key={`${step.action}:${step.target}:${step.label}:${step.value}`}
                 step={step}
                 index={i}
                 total={(editing.steps ?? []).length}
@@ -254,7 +254,7 @@ function DefineTab({ platformId, automations, onSaved, onDeleted }: {
               <div className="automation-card-info">
                 <span className="automation-card-name">{a.name}</span>
                 {a.description && <span className="automation-card-desc">{a.description}</span>}
-                <span className="automation-card-meta">{a.steps.length} step{a.steps.length !== 1 ? 's' : ''} &middot; {a.runCount} runs</span>
+                <span className="automation-card-meta">{a.steps.length} step{a.steps.length === 1 ? '' : 's'} &middot; {a.runCount} runs</span>
               </div>
               <div className="automation-card-actions">
                 <button className="btn-secondary" style={{ fontSize: 12 }} onClick={() => startEdit(a)}>Edit</button>
@@ -270,9 +270,9 @@ function DefineTab({ platformId, automations, onSaved, onDeleted }: {
 
 /* ── Execute tab ── */
 function ExecuteTab({ platformId, automations, addMessage }: {
-  platformId: string;
-  automations: AutomationData[];
-  addMessage: (type: ChatMessage['type'], text: string) => void;
+  readonly platformId: string;
+  readonly automations: AutomationData[];
+  readonly addMessage: (type: ChatMessage['type'], text: string) => void;
 }) {
   const [selectedId, setSelectedId] = useState('');
   const [running, setRunning] = useState(false);
@@ -319,9 +319,9 @@ function ExecuteTab({ platformId, automations, addMessage }: {
           <div className="automation-preview">
             {auto.description && <p className="automation-preview-desc">{auto.description}</p>}
             <div className="automation-preview-steps">
-              {auto.steps.map((s, i) => (
-                <div key={`prev-${i}`} className="automation-preview-step">
-                  <span className="automation-preview-num">{i + 1}</span>
+              {auto.steps.map((s, stepIdx) => (
+                <div key={`${s.action}:${s.target}:${s.label}:${s.value}`} className="automation-preview-step">
+                  <span className="automation-preview-num">{stepIdx + 1}</span>
                   <span className="automation-preview-action">{AUTOMATION_ACTIONS.find(a => a.value === s.action)?.label ?? s.action}</span>
                   {s.label && <span className="automation-preview-label">{s.label}</span>}
                   {s.target && <code className="automation-preview-target">{s.target}</code>}
@@ -350,9 +350,9 @@ function ExecuteTab({ platformId, automations, addMessage }: {
 
 /* ── Schedule tab ── */
 function ScheduleTab({ platformId, automations, addMessage }: {
-  platformId: string;
-  automations: AutomationData[];
-  addMessage: (type: ChatMessage['type'], text: string) => void;
+  readonly platformId: string;
+  readonly automations: AutomationData[];
+  readonly addMessage: (type: ChatMessage['type'], text: string) => void;
 }) {
   const [selectedId, setSelectedId] = useState('');
   const [scheduleInterval, setScheduleInterval] = useState('12h');

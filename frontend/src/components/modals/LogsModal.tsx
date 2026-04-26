@@ -3,7 +3,7 @@ import { GetLogs, ExportLogs, ClearLogs } from '../../../wailsjs/go/main/App';
 import type { LogEntryResponse } from '../../types';
 
 interface Props {
-  onClose: () => void;
+  readonly onClose: () => void;
 }
 
 export function LogsModal({ onClose }: Props) {
@@ -48,9 +48,14 @@ export function LogsModal({ onClose }: Props) {
       className="modal-overlay"
       onClick={onClose}
       onKeyDown={e => { if (e.key === 'Escape') onClose(); }}
-      role="presentation"
     >
-      <div className="modal-content logs-modal" onClick={e => e.stopPropagation()}>
+      <div
+        className="modal-content logs-modal"
+        role="dialog"
+        aria-modal="true"
+        onClick={e => e.stopPropagation()}
+        onKeyDown={e => e.stopPropagation()}
+      >
         <div className="modal-header">
           <h3>Application Logs</h3>
           <div style={{ display: 'flex', gap: 8 }}>

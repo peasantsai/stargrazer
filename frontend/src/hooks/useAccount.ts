@@ -3,6 +3,12 @@ import type { AccountInfo } from '../types';
 
 const STORAGE_KEY = 'stargrazer-account';
 const DEFAULTS: AccountInfo = { name: 'User', email: '', avatarUrl: '' };
+const MAX_FIELD_LENGTH = 500;
+
+/** Trims and length-limits a string to prevent oversized or padded values in storage. */
+function sanitizeField(value: string): string {
+  return value.trim().slice(0, MAX_FIELD_LENGTH);
+}
 
 function loadAccount(): AccountInfo {
   try {
@@ -12,9 +18,9 @@ function loadAccount(): AccountInfo {
     if (typeof parsed !== 'object' || parsed === null) return DEFAULTS;
     const p = parsed as Record<string, unknown>;
     return {
-      name:      typeof p.name      === 'string' ? p.name      : DEFAULTS.name,
-      email:     typeof p.email     === 'string' ? p.email     : DEFAULTS.email,
-      avatarUrl: typeof p.avatarUrl === 'string' ? p.avatarUrl : DEFAULTS.avatarUrl,
+      name:      typeof p.name      === 'string' ? sanitizeField(p.name)      : DEFAULTS.name,
+      email:     typeof p.email     === 'string' ? sanitizeField(p.email)     : DEFAULTS.email,
+      avatarUrl: typeof p.avatarUrl === 'string' ? sanitizeField(p.avatarUrl) : DEFAULTS.avatarUrl,
     };
   } catch {
     return DEFAULTS;
@@ -22,15 +28,15 @@ function loadAccount(): AccountInfo {
 }
 
 export function useAccount(): [AccountInfo, (partial: Partial<AccountInfo>) => void] {
-  const [account, setAccountState] = useState<AccountInfo>(loadAccount);
+  const [account, setAccount] = useState<AccountInfo>(loadAccount);
 
   const updateAccount = (partial: Partial<AccountInfo>) => {
     const next: AccountInfo = {
-      name:      typeof partial.name      === 'string' ? partial.name      : account.name,
-      email:     typeof partial.email     === 'string' ? partial.email     : account.email,
-      avatarUrl: typeof partial.avatarUrl === 'string' ? partial.avatarUrl : account.avatarUrl,
+      name:      typeof partial.name      === 'string' ? sanitizeField(partial.name)      : account.name,
+      email:     typeof partial.email     === 'string' ? sanitizeField(partial.email)     : account.email,
+      avatarUrl: typeof partial.avatarUrl === 'string' ? sanitizeField(partial.avatarUrl) : account.avatarUrl,
     };
-    setAccountState(next);
+    setAccount(next);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
   };
 

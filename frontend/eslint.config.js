@@ -6,9 +6,11 @@ import eslintConfigPrettier from 'eslint-config-prettier';
 
 export default tseslint.config(
   { ignores: ['dist', 'wailsjs'] },
-  js.configs.recommended,
-  ...tseslint.configs.recommended,
   {
+    extends: [
+      js.configs.recommended,
+      ...tseslint.configs.recommended,
+    ],
     plugins: {
       'react-hooks': reactHooks,
       'react-refresh': reactRefresh,

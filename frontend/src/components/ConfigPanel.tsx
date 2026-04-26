@@ -9,13 +9,17 @@ import { HamburgerBtn } from './HamburgerBtn';
 import { SocialMediaSection } from './settings/SocialMediaSection';
 import { LogsModal } from './modals/LogsModal';
 
+function isKnownFlag(f: string): boolean {
+  return CHROMIUM_FLAGS.some(g => g.flags.some(gf => gf.flag === f));
+}
+
 interface Props {
-  onSaved: (msg: string) => void;
-  sidebarOpen: boolean;
-  onToggleSidebar: () => void;
-  onBrowserStatusChange: (s: string) => void;
-  addMessage: (type: ChatMessage['type'], text: string) => void;
-  refreshPlatforms: () => void;
+  readonly onSaved: (msg: string) => void;
+  readonly sidebarOpen: boolean;
+  readonly onToggleSidebar: () => void;
+  readonly onBrowserStatusChange: (s: string) => void;
+  readonly addMessage: (type: ChatMessage['type'], text: string) => void;
+  readonly refreshPlatforms: () => void;
 }
 
 export function ConfigPanel({
@@ -38,6 +42,15 @@ export function ConfigPanel({
     if (!config) return;
     const current = config.extraFlags ?? [];
     updateField('extraFlags', current.includes(flag) ? current.filter(f => f !== flag) : [...current, flag]);
+  };
+
+  const handleCustomFlagsChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const current = config?.extraFlags ?? [];
+    const known = current.filter(isKnownFlag);
+    updateField('extraFlags', [
+      ...known,
+      ...e.target.value.split(',').map(s => s.trim()).filter(Boolean),
+    ]);
   };
 
   const toggleCategory = (cat: string) => {
@@ -279,11 +292,8 @@ export function ConfigPanel({
             <input
               id="cfg-custom-flags"
               type="text"
-              value={activeFlags.filter(f => !CHROMIUM_FLAGS.some(g => g.flags.some(gf => gf.flag === f))).join(', ')}
-              onChange={e => {
-                const known = activeFlags.filter(f => CHROMIUM_FLAGS.some(g => g.flags.some(gf => gf.flag === f)));
-                updateField('extraFlags', [...known, ...e.target.value.split(',').map(s => s.trim()).filter(Boolean)]);
-              }}
+              value={activeFlags.filter(f => !isKnownFlag(f)).join(', ')}
+              onChange={handleCustomFlagsChange}
               placeholder="--proxy-server=host:port"
             />
           </div>

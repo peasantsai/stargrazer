@@ -6,10 +6,10 @@ import { CreateScheduleModal } from './modals/CreateScheduleModal';
 import { ScheduleDetailModal } from './modals/ScheduleDetailModal';
 
 interface Props {
-  sidebarOpen: boolean;
-  onToggleSidebar: () => void;
-  addMessage: (type: ChatMessage['type'], text: string) => void;
-  platforms: PlatformResponse[];
+  readonly sidebarOpen: boolean;
+  readonly onToggleSidebar: () => void;
+  readonly addMessage: (type: ChatMessage['type'], text: string) => void;
+  readonly platforms: PlatformResponse[];
 }
 
 function statusDotClass(status: string): string {
@@ -68,13 +68,11 @@ export function SchedulesPanel({ sidebarOpen, onToggleSidebar, addMessage, platf
       ) : (
         <div className="schedule-list">
           {schedules.map(j => (
-            <div
+            <button
               key={j.id}
+              type="button"
               className="schedule-card"
               onClick={() => setSelectedJob(j)}
-              onKeyDown={e => { if (e.key === 'Enter') setSelectedJob(j); }}
-              role="button"
-              tabIndex={0}
             >
               <span className={`status-dot ${statusDotClass(j.status)}`} />
               <div className="schedule-card-info">
@@ -101,7 +99,7 @@ export function SchedulesPanel({ sidebarOpen, onToggleSidebar, addMessage, platf
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-secondary)" strokeWidth="2">
                 <polyline points="9 18 15 12 9 6"/>
               </svg>
-            </div>
+            </button>
           ))}
         </div>
       )}

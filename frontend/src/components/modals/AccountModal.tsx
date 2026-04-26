@@ -2,9 +2,9 @@ import { useState } from 'react';
 import type { AccountInfo } from '../../types';
 
 interface Props {
-  account: AccountInfo;
-  updateAccount: (partial: Partial<AccountInfo>) => void;
-  onClose: () => void;
+  readonly account: AccountInfo;
+  readonly updateAccount: (partial: Partial<AccountInfo>) => void;
+  readonly onClose: () => void;
 }
 
 export function AccountModal({ account, updateAccount, onClose }: Props) {
@@ -24,9 +24,14 @@ export function AccountModal({ account, updateAccount, onClose }: Props) {
       className="modal-overlay"
       onClick={onClose}
       onKeyDown={e => { if (e.key === 'Escape') onClose(); }}
-      role="presentation"
     >
-      <div className="modal-content" onClick={e => e.stopPropagation()}>
+      <div
+        className="modal-content"
+        role="dialog"
+        aria-modal="true"
+        onClick={e => e.stopPropagation()}
+        onKeyDown={e => e.stopPropagation()}
+      >
         <div className="modal-header">
           <h3>Account Settings</h3>
           <button className="modal-close" onClick={onClose} aria-label="Close">

@@ -1,6 +1,6 @@
 interface Props {
-  sidebarOpen: boolean;
-  onToggle: () => void;
+  readonly sidebarOpen: boolean;
+  readonly onToggle: () => void;
 }
 
 export function HamburgerBtn({ sidebarOpen, onToggle }: Props) {

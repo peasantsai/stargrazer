@@ -8,9 +8,9 @@ import { PLATFORM_ICONS, PLATFORM_COLORS } from '../../constants/platforms';
 import { CookiePasteModal } from '../modals/CookiePasteModal';
 
 interface Props {
-  onBrowserStatusChange: (s: string) => void;
-  addMessage: (type: ChatMessage['type'], text: string) => void;
-  refreshPlatforms: () => void;
+  readonly onBrowserStatusChange: (s: string) => void;
+  readonly addMessage: (type: ChatMessage['type'], text: string) => void;
+  readonly refreshPlatforms: () => void;
 }
 
 export function SocialMediaSection({ onBrowserStatusChange, addMessage, refreshPlatforms }: Props) {
@@ -115,13 +115,11 @@ export function SocialMediaSection({ onBrowserStatusChange, addMessage, refreshP
         {platforms.map(p => {
           const colors = PLATFORM_COLORS[p.id] ?? { bg: '#333', hover: '#444', text: '#fff' };
           return (
-            <div
+            <button
               key={p.id}
+              type="button"
               className={`social-card ${p.loggedIn ? 'logged-in' : ''}`}
               onClick={() => openModal(p)}
-              onKeyDown={e => { if (e.key === 'Enter') openModal(p); }}
-              role="button"
-              tabIndex={0}
               style={{ '--platform-bg': colors.bg, '--platform-hover': colors.hover, '--platform-text': colors.text } as React.CSSProperties}
             >
               <div className="social-card-icon">{PLATFORM_ICONS[p.id]}</div>
@@ -147,7 +145,7 @@ export function SocialMediaSection({ onBrowserStatusChange, addMessage, refreshP
               {p.loggedIn && p.lastLogin && (
                 <div className="social-card-meta">Since {new Date(p.lastLogin).toLocaleDateString()}</div>
               )}
-            </div>
+            </button>
           );
         })}
       </div>
@@ -165,9 +163,14 @@ export function SocialMediaSection({ onBrowserStatusChange, addMessage, refreshP
           className="modal-overlay"
           onClick={() => setInfoModal(null)}
           onKeyDown={e => { if (e.key === 'Escape') setInfoModal(null); }}
-          role="presentation"
         >
-          <div className="modal-content" onClick={e => e.stopPropagation()}>
+          <div
+            className="modal-content"
+            role="dialog"
+            aria-modal="true"
+            onClick={e => e.stopPropagation()}
+            onKeyDown={e => e.stopPropagation()}
+          >
             <div className="modal-header">
               <div className="modal-title-row">
                 <div

@@ -29,7 +29,7 @@ var safePlatformIDPattern = regexp.MustCompile(`^[a-z0-9_-]+$`)
 
 // App exposes backend methods to the frontend via Wails bindings.
 type App struct {
-	ctx         context.Context
+	getCtx      func() context.Context
 	browser     *browser.Manager
 	sessions    *social.SessionStore
 	scheduler   *scheduler.Scheduler
@@ -40,6 +40,7 @@ func NewApp() *App {
 	b := browser.GetInstance()
 	s := social.NewSessionStore()
 	return &App{
+		getCtx:      func() context.Context { return context.Background() },
 		browser:     b,
 		sessions:    s,
 		scheduler:   scheduler.GetInstance(b, s),
@@ -48,7 +49,7 @@ func NewApp() *App {
 }
 
 func (a *App) startup(ctx context.Context) {
-	a.ctx = ctx
+	a.getCtx = func() context.Context { return ctx }
 	logger.Info("app", "Stargrazer started")
 	if config.GetScheduler().Enabled {
 		a.scheduler.Start()
@@ -315,42 +316,14 @@ func (a *App) ImportCookies(platformID, cookieText string) PlatformResponse {
 	}
 
 	// Extract username / user ID from platform-specific cookies.
-	// Facebook:  c_user      = numeric user ID
-	// Instagram: ds_user_id  = numeric user ID
-	// TikTok:    uid_tt      = numeric user ID (may not be present in all sessions)
-	// X:         twid        = URL-encoded "u=<numeric_id>"
+	// Facebook: c_user, Instagram: ds_user_id, TikTok: uid_tt, X: twid (URL-encoded)
 	// LinkedIn/YouTube: no standard cookie exposes the username; shown as "Connected"
-	username := ""
-	for _, c := range cookies {
-		if username != "" {
-			break
-		}
-		switch c.Name {
-		case "c_user", "ds_user_id", "uid_tt":
-			username = c.Value
-		case "twid":
-			// twid value is URL-encoded: u%3D<user_id>
-			if decoded, err := url.QueryUnescape(c.Value); err == nil {
-				username = strings.TrimPrefix(decoded, "u=")
-			}
-		}
-	}
-
+	username := extractUsernameFromCookies(cookies)
 	a.sessions.SetLoggedIn(pid, username)
 
 	// Persist cookies to disk
 	dataDir := social.SharedSessionDir()
-	cookieData, err := json.MarshalIndent(cookies, "", "  ")
-	if err != nil {
-		logger.Warn("social", fmt.Sprintf("encoding cookies for %s: %v", platform.Name, err))
-	} else {
-		cookiesDir := filepath.Join(dataDir, "cookies")
-		if mkErr := os.MkdirAll(cookiesDir, 0700); mkErr != nil {
-			logger.Warn("social", fmt.Sprintf("creating cookies dir: %v", mkErr))
-		} else if wErr := os.WriteFile(filepath.Join(cookiesDir, platformID+".json"), cookieData, 0600); wErr != nil {
-			logger.Warn("social", fmt.Sprintf("writing cookies for %s: %v", platform.Name, wErr))
-		}
-	}
+	persistCookiesToDisk(platformID, platform.Name, cookies, dataDir)
 
 	logger.Info("social", fmt.Sprintf("%s session saved (user: %s)", platform.Name, username))
 
@@ -358,6 +331,39 @@ func (a *App) ImportCookies(platformID, cookieText string) PlatformResponse {
 	a.scheduler.EnsureKeepAlive(platformID, platform.Name, cookies)
 
 	return toPlatformResponse(platform, a.sessions.Get(pid))
+}
+
+// extractUsernameFromCookies scans cookies for platform-specific user identity fields.
+func extractUsernameFromCookies(cookies []browser.CDPCookie) string {
+	for _, c := range cookies {
+		switch c.Name {
+		case "c_user", "ds_user_id", "uid_tt":
+			return c.Value
+		case "twid":
+			// twid value is URL-encoded: u%3D<user_id>
+			if decoded, err := url.QueryUnescape(c.Value); err == nil {
+				return strings.TrimPrefix(decoded, "u=")
+			}
+		}
+	}
+	return ""
+}
+
+// persistCookiesToDisk writes cookies for a platform to the shared session directory.
+func persistCookiesToDisk(platformID, platformName string, cookies []browser.CDPCookie, dataDir string) {
+	cookieData, err := json.MarshalIndent(cookies, "", "  ")
+	if err != nil {
+		logger.Warn("social", fmt.Sprintf("encoding cookies for %s: %v", platformName, err))
+		return
+	}
+	cookiesDir := filepath.Join(dataDir, "cookies")
+	if mkErr := os.MkdirAll(cookiesDir, 0700); mkErr != nil {
+		logger.Warn("social", fmt.Sprintf("creating cookies dir: %v", mkErr))
+		return
+	}
+	if wErr := os.WriteFile(filepath.Join(cookiesDir, platformID+".json"), cookieData, 0600); wErr != nil {
+		logger.Warn("social", fmt.Sprintf("writing cookies for %s: %v", platformName, wErr))
+	}
 }
 
 func toPlatformResponse(p *social.PlatformInfo, s social.AccountStatus) PlatformResponse {
@@ -525,7 +531,7 @@ func (a *App) ClearLogs()         { logger.Clear() }
 
 // SelectFile opens a native file dialog and returns the selected file path.
 func (a *App) SelectFile() string {
-	selection, err := wailsRuntime.OpenFileDialog(a.ctx, wailsRuntime.OpenDialogOptions{
+	selection, err := wailsRuntime.OpenFileDialog(a.getCtx(), wailsRuntime.OpenDialogOptions{
 		Title: "Select file to upload",
 		Filters: []wailsRuntime.FileFilter{
 			{DisplayName: "Images & Videos", Pattern: "*.jpg;*.jpeg;*.png;*.gif;*.webp;*.mp4;*.mov;*.avi;*.webm"},

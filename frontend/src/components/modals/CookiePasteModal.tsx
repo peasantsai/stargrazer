@@ -3,9 +3,9 @@ import type { PlatformResponse } from '../../types';
 import { PLATFORM_ICONS, PLATFORM_COLORS } from '../../constants/platforms';
 
 interface Props {
-  platform: PlatformResponse;
-  onImport: (text: string) => void;
-  onCancel: () => void;
+  readonly platform: PlatformResponse;
+  readonly onImport: (text: string) => void;
+  readonly onCancel: () => void;
 }
 
 export function CookiePasteModal({ platform, onImport, onCancel }: Props) {
@@ -18,9 +18,14 @@ export function CookiePasteModal({ platform, onImport, onCancel }: Props) {
       className="modal-overlay"
       onClick={onCancel}
       onKeyDown={e => { if (e.key === 'Escape') onCancel(); }}
-      role="presentation"
     >
-      <div className="modal-content cookie-modal" onClick={e => e.stopPropagation()}>
+      <div
+        className="modal-content cookie-modal"
+        role="dialog"
+        aria-modal="true"
+        onClick={e => e.stopPropagation()}
+        onKeyDown={e => e.stopPropagation()}
+      >
         <div className="modal-header">
           <div className="modal-title-row">
             <div
@@ -45,15 +50,15 @@ export function CookiePasteModal({ platform, onImport, onCancel }: Props) {
         <div className="modal-body" style={{ padding: '16px 20px' }}>
           <div className="cookie-instructions">
             <div className="cookie-step">
-              <span className="cookie-step-num">1</span>
+              <span className="cookie-step-num">1</span>{' '}
               Open {platform.name} in the browser and log in
             </div>
             <div className="cookie-step">
-              <span className="cookie-step-num">2</span>
+              <span className="cookie-step-num">2</span>{' '}
               Click the cookies extension icon (pinned in toolbar)
             </div>
             <div className="cookie-step">
-              <span className="cookie-step-num">3</span>
+              <span className="cookie-step-num">3</span>{' '}
               Export as Netscape format and paste below
             </div>
           </div>

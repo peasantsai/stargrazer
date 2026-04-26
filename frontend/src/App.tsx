@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { StartBrowser, StopBrowser, GetBrowserStatus, GetPlatforms } from '../wailsjs/go/main/App';
-import type { ChatMessage, View } from './types';
+import type { ChatMessage, View, PlatformResponse } from './types';
 import { isPlatformView, platformIdFromView } from './types';
 import { useTheme } from './hooks/useTheme';
 import { useAccount } from './hooks/useAccount';
@@ -9,7 +9,6 @@ import { ChatPanel } from './components/ChatPanel';
 import { SchedulesPanel } from './components/SchedulesPanel';
 import { ConfigPanel } from './components/ConfigPanel';
 import { PlatformPage } from './components/PlatformPage';
-import type { PlatformResponse } from './types';
 
 const PLATFORM_NAMES: Record<string, string> = {
   facebook: 'Facebook',
