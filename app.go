@@ -7,8 +7,10 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"time"
 
+	"stargrazer/internal/automation"
 	"stargrazer/internal/browser"
 	"stargrazer/internal/config"
 	"stargrazer/internal/logger"
@@ -25,19 +27,21 @@ var safePlatformIDPattern = regexp.MustCompile(`^[a-z0-9_-]+$`)
 
 // App exposes backend methods to the frontend via Wails bindings.
 type App struct {
-	ctx       context.Context
-	browser   *browser.Manager
-	sessions  *social.SessionStore
-	scheduler *scheduler.Scheduler
+	ctx         context.Context
+	browser     *browser.Manager
+	sessions    *social.SessionStore
+	scheduler   *scheduler.Scheduler
+	automations *automation.Store
 }
 
 func NewApp() *App {
 	b := browser.GetInstance()
 	s := social.NewSessionStore()
 	return &App{
-		browser:   b,
-		sessions:  s,
-		scheduler: scheduler.GetInstance(b, s),
+		browser:     b,
+		sessions:    s,
+		scheduler:   scheduler.GetInstance(b, s),
+		automations: automation.NewStore(social.SharedSessionDir()),
 	}
 }
 
@@ -270,9 +274,11 @@ func (a *App) PurgeSession(platformID string) PlatformResponse {
 	// Mark as logged out
 	a.sessions.SetLoggedOut(pid)
 
-	// Delete cookies file from disk
+	// Delete cookies file from disk (best-effort; log on failure)
 	cookieFile := filepath.Join(social.SharedSessionDir(), "cookies", platformID+".json")
-	os.Remove(cookieFile)
+	if err := os.Remove(cookieFile); err != nil && !os.IsNotExist(err) {
+		logger.Warn("social", fmt.Sprintf("removing cookie file for %s: %v", platform.Name, err))
+	}
 
 	logger.Info("social", fmt.Sprintf("%s session purged", platform.Name))
 	return toPlatformResponse(platform, a.sessions.Get(pid))
@@ -321,10 +327,17 @@ func (a *App) ImportCookies(platformID, cookieText string) PlatformResponse {
 
 	// Persist cookies to disk
 	dataDir := social.SharedSessionDir()
-	cookieData, _ := json.MarshalIndent(cookies, "", "  ")
-	cookiesDir := filepath.Join(dataDir, "cookies")
-	os.MkdirAll(cookiesDir, 0700)
-	os.WriteFile(filepath.Join(cookiesDir, platformID+".json"), cookieData, 0600)
+	cookieData, err := json.MarshalIndent(cookies, "", "  ")
+	if err != nil {
+		logger.Warn("social", fmt.Sprintf("encoding cookies for %s: %v", platform.Name, err))
+	} else {
+		cookiesDir := filepath.Join(dataDir, "cookies")
+		if mkErr := os.MkdirAll(cookiesDir, 0700); mkErr != nil {
+			logger.Warn("social", fmt.Sprintf("creating cookies dir: %v", mkErr))
+		} else if wErr := os.WriteFile(filepath.Join(cookiesDir, platformID+".json"), cookieData, 0600); wErr != nil {
+			logger.Warn("social", fmt.Sprintf("writing cookies for %s: %v", platform.Name, wErr))
+		}
+	}
 
 	logger.Info("social", fmt.Sprintf("%s session saved (user: %s)", platform.Name, username))
 
@@ -544,7 +557,9 @@ func (a *App) TriggerUpload(req workflow.UploadRequest) UploadResponse {
 	}
 	recordData, _ := json.MarshalIndent(record, "", "  ")
 	recordFile := filepath.Join(uploadsDir, fmt.Sprintf("upload_%d.json", time.Now().UnixMilli()))
-	os.WriteFile(recordFile, recordData, 0600)
+	if err := os.WriteFile(recordFile, recordData, 0600); err != nil {
+		logger.Warn("upload", fmt.Sprintf("writing upload record: %v", err))
+	}
 
 	for _, pid := range req.Platforms {
 		wf, err := workflow.LoadWorkflow(pid)
@@ -564,4 +579,168 @@ func formatTime(t time.Time) string {
 		return ""
 	}
 	return t.Format(time.RFC3339)
+}
+
+// --- Automations ---
+
+// AutomationStepPayload is the wire-format for a single automation step.
+type AutomationStepPayload struct {
+	Action string `json:"action"`
+	Target string `json:"target"`
+	Value  string `json:"value"`
+	Label  string `json:"label"`
+}
+
+// AutomationPayload is the wire-format for an automation config.
+type AutomationPayload struct {
+	ID          string                  `json:"id"`
+	PlatformID  string                  `json:"platformId"`
+	Name        string                  `json:"name"`
+	Description string                  `json:"description"`
+	Steps       []AutomationStepPayload `json:"steps"`
+	CreatedAt   string                  `json:"createdAt"`
+	LastRun     string                  `json:"lastRun"`
+	RunCount    int                     `json:"runCount"`
+}
+
+// RunAutomationResponse reports the result of executing an automation.
+type RunAutomationResponse struct {
+	Success bool   `json:"success"`
+	Message string `json:"message"`
+}
+
+func toAutomationPayload(c automation.Config) AutomationPayload {
+	steps := make([]AutomationStepPayload, len(c.Steps))
+	for i, s := range c.Steps {
+		steps[i] = AutomationStepPayload{
+			Action: string(s.Action), Target: s.Target,
+			Value: s.Value, Label: s.Label,
+		}
+	}
+	return AutomationPayload{
+		ID: c.ID, PlatformID: c.PlatformID,
+		Name: c.Name, Description: c.Description,
+		Steps:     steps,
+		CreatedAt: formatTime(c.CreatedAt),
+		LastRun:   formatTime(c.LastRun),
+		RunCount:  c.RunCount,
+	}
+}
+
+// GetAutomations returns all saved automations for a platform.
+func (a *App) GetAutomations(platformID string) []AutomationPayload {
+	if !safePlatformIDPattern.MatchString(platformID) {
+		return []AutomationPayload{}
+	}
+	configs, err := a.automations.List(platformID)
+	if err != nil {
+		logger.Error("automation", fmt.Sprintf("List: %v", err))
+		return []AutomationPayload{}
+	}
+	result := make([]AutomationPayload, len(configs))
+	for i, c := range configs {
+		result[i] = toAutomationPayload(c)
+	}
+	return result
+}
+
+// SaveAutomation creates or updates an automation for a platform.
+func (a *App) SaveAutomation(platformID string, req AutomationPayload) AutomationPayload {
+	if !safePlatformIDPattern.MatchString(platformID) {
+		return AutomationPayload{}
+	}
+	steps := make([]automation.Step, len(req.Steps))
+	for i, s := range req.Steps {
+		steps[i] = automation.Step{
+			Action: automation.Action(s.Action),
+			Target: s.Target, Value: s.Value, Label: s.Label,
+		}
+	}
+	cfg := automation.Config{
+		ID: req.ID, PlatformID: platformID,
+		Name: req.Name, Description: req.Description,
+		Steps: steps,
+	}
+	saved, err := a.automations.Save(cfg)
+	if err != nil {
+		logger.Error("automation", fmt.Sprintf("Save: %v", err))
+		return AutomationPayload{}
+	}
+	logger.Info("automation", fmt.Sprintf("Saved %q for %s", saved.Name, platformID))
+	return toAutomationPayload(saved)
+}
+
+// DeleteAutomation removes an automation by ID.
+func (a *App) DeleteAutomation(platformID, id string) bool {
+	if !safePlatformIDPattern.MatchString(platformID) {
+		return false
+	}
+	ok, err := a.automations.Delete(platformID, id)
+	if err != nil {
+		logger.Error("automation", fmt.Sprintf("Delete: %v", err))
+		return false
+	}
+	return ok
+}
+
+// RunAutomation executes a saved automation step-by-step via CDP.
+func (a *App) RunAutomation(platformID, id string) RunAutomationResponse {
+	if !safePlatformIDPattern.MatchString(platformID) {
+		return RunAutomationResponse{Success: false, Message: "invalid platform ID"}
+	}
+	if !a.browser.IsRunning() {
+		return RunAutomationResponse{Success: false, Message: "browser is not running — start it first"}
+	}
+	configs, err := a.automations.List(platformID)
+	if err != nil {
+		return RunAutomationResponse{Success: false, Message: err.Error()}
+	}
+	var cfg *automation.Config
+	for i := range configs {
+		if configs[i].ID == id {
+			cfg = &configs[i]
+			break
+		}
+	}
+	if cfg == nil {
+		return RunAutomationResponse{Success: false, Message: "automation not found"}
+	}
+	logger.Info("automation", fmt.Sprintf("Running %q (%d steps) for %s", cfg.Name, len(cfg.Steps), platformID))
+	for i, step := range cfg.Steps {
+		if err := a.executeStep(step); err != nil {
+			msg := fmt.Sprintf("step %d (%s %q): %v", i+1, step.Action, step.Label, err)
+			logger.Error("automation", msg)
+			return RunAutomationResponse{Success: false, Message: msg}
+		}
+	}
+	if err := a.automations.RecordRun(platformID, id); err != nil {
+		logger.Warn("automation", fmt.Sprintf("RecordRun: %v", err))
+	}
+	return RunAutomationResponse{Success: true, Message: fmt.Sprintf("'%s' completed (%d steps)", cfg.Name, len(cfg.Steps))}
+}
+
+// executeStep dispatches a single automation step to the appropriate browser method.
+func (a *App) executeStep(step automation.Step) error {
+	switch step.Action {
+	case automation.ActionNavigate:
+		return a.browser.NavigateToURL(step.Target)
+	case automation.ActionClick:
+		return a.browser.ClickElement(step.Target)
+	case automation.ActionType:
+		return a.browser.TypeText(step.Target, step.Value)
+	case automation.ActionWait:
+		ms := 1000
+		if n, err := strconv.Atoi(step.Value); err == nil && n > 0 {
+			ms = n
+		}
+		time.Sleep(time.Duration(ms) * time.Millisecond)
+		return nil
+	case automation.ActionEvaluate:
+		_, err := a.browser.EvaluateExpression(step.Value)
+		return err
+	case automation.ActionScroll:
+		return a.browser.ScrollToElement(step.Target)
+	default:
+		return fmt.Errorf("unknown action: %q", step.Action)
+	}
 }

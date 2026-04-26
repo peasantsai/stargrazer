@@ -18,12 +18,20 @@ export function CreateSchedule(arg1) {
   return window['go']['main']['App']['CreateSchedule'](arg1);
 }
 
+export function DeleteAutomation(arg1, arg2) {
+  return window['go']['main']['App']['DeleteAutomation'](arg1, arg2);
+}
+
 export function DeleteSchedule(arg1) {
   return window['go']['main']['App']['DeleteSchedule'](arg1);
 }
 
 export function ExportLogs() {
   return window['go']['main']['App']['ExportLogs']();
+}
+
+export function GetAutomations(arg1) {
+  return window['go']['main']['App']['GetAutomations'](arg1);
 }
 
 export function GetBrowserConfig() {
@@ -76,6 +84,14 @@ export function RestartBrowser() {
 
 export function ResumeSchedule(arg1) {
   return window['go']['main']['App']['ResumeSchedule'](arg1);
+}
+
+export function RunAutomation(arg1, arg2) {
+  return window['go']['main']['App']['RunAutomation'](arg1, arg2);
+}
+
+export function SaveAutomation(arg1, arg2) {
+  return window['go']['main']['App']['SaveAutomation'](arg1, arg2);
 }
 
 export function SelectFile() {

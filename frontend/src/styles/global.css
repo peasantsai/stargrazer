@@ -426,3 +426,171 @@ input, textarea, select { font-family: inherit; font-size: inherit; }
 .text-muted { color: var(--text-secondary); }
 
 .btn-secondary.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+/* --- Sidebar: section label & platform nav --- */
+.sidebar-section-label {
+  font-size: 10px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.8px; color: var(--text-secondary);
+  padding: 8px 8px 4px; margin-top: 4px;
+}
+
+.nav-btn-platform {
+  gap: 10px; padding-left: 10px;
+}
+
+.nav-platform-icon {
+  width: 18px; height: 18px; display: flex; align-items: center;
+  justify-content: center; flex-shrink: 0; border-radius: 4px; overflow: hidden;
+}
+.nav-platform-icon svg { width: 16px; height: 16px; }
+
+/* --- Platform page --- */
+.platform-page { display: flex; flex-direction: column; }
+
+.platform-page-title {
+  display: flex; align-items: center; gap: 10px;
+}
+
+.platform-page-icon {
+  width: 28px; height: 28px; display: flex; align-items: center;
+  justify-content: center; border-radius: 6px; overflow: hidden; flex-shrink: 0;
+}
+.platform-page-icon svg { width: 22px; height: 22px; }
+
+/* --- Platform tabs --- */
+.platform-tabs {
+  display: flex; gap: 4px; padding: 0 24px 0;
+  border-bottom: 1px solid var(--border-color); flex-shrink: 0;
+}
+
+.platform-tab {
+  padding: 10px 20px; background: transparent; color: var(--text-secondary);
+  font-size: 13px; font-weight: 500; border-radius: 0;
+  border-bottom: 2px solid transparent; margin-bottom: -1px;
+  transition: color 0.15s, border-color 0.15s;
+}
+.platform-tab:hover { color: var(--text-primary); }
+.platform-tab.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
+
+.platform-tab-content {
+  flex: 1; overflow-y: auto; padding: 20px 24px;
+}
+
+/* --- Automation list view --- */
+.automation-list-header { margin-bottom: 16px; }
+
+.automation-empty {
+  display: flex; flex-direction: column; align-items: center; gap: 12px;
+  padding: 48px 24px; color: var(--text-secondary); text-align: center;
+}
+.automation-empty p { font-size: 13px; max-width: 360px; line-height: 1.6; }
+
+.automation-cards { display: flex; flex-direction: column; gap: 8px; }
+
+.automation-card {
+  display: flex; align-items: center; gap: 12px; padding: 14px 16px;
+  background: var(--bg-secondary); border: 1px solid var(--border-color);
+  border-radius: 12px; transition: border-color 0.15s;
+}
+.automation-card:hover { border-color: var(--accent); }
+
+.automation-card-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.automation-card-name { font-size: 14px; font-weight: 600; color: var(--text-primary); }
+.automation-card-desc { font-size: 12px; color: var(--text-secondary); }
+.automation-card-meta { font-size: 11px; color: var(--text-secondary); }
+.automation-card-actions { display: flex; gap: 6px; flex-shrink: 0; }
+
+/* --- Automation editor --- */
+.automation-editor {
+  display: flex; flex-direction: column; gap: 14px;
+}
+
+.automation-editor-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 4px;
+}
+.automation-editor-header h3 { font-size: 16px; font-weight: 600; }
+
+.automation-steps-label {
+  font-size: 13px; font-weight: 600; color: var(--text-secondary);
+  display: flex; align-items: center; margin-bottom: 8px;
+}
+
+.automation-empty-steps {
+  font-size: 13px; color: var(--text-secondary); padding: 16px;
+  background: var(--bg-tertiary); border-radius: 8px; text-align: center;
+}
+
+.automation-steps { display: flex; flex-direction: column; gap: 8px; }
+
+.automation-step {
+  display: flex; gap: 10px; align-items: flex-start;
+  padding: 12px; background: var(--bg-secondary); border: 1px solid var(--border-color);
+  border-radius: 10px;
+}
+
+.automation-step-num {
+  width: 22px; height: 22px; display: flex; align-items: center; justify-content: center;
+  background: var(--accent); color: #fff; border-radius: 50%; font-size: 11px;
+  font-weight: 700; flex-shrink: 0; margin-top: 6px;
+}
+
+.automation-step-fields { flex: 1; display: flex; flex-direction: column; gap: 6px; }
+.automation-step-row { display: flex; gap: 8px; }
+.automation-step-row select { flex: 0 0 130px; }
+.automation-step-row input { flex: 1; }
+.automation-step-fields input,
+.automation-step-fields select {
+  padding: 6px 10px; background: var(--bg-tertiary); border: 1px solid var(--border-color);
+  border-radius: 6px; color: var(--text-primary); font-size: 12px; outline: none;
+  transition: border-color 0.15s;
+}
+.automation-step-fields input:focus,
+.automation-step-fields select:focus { border-color: var(--accent); }
+
+.automation-step-actions {
+  display: flex; flex-direction: column; gap: 4px; flex-shrink: 0;
+}
+.automation-step-actions button {
+  background: transparent; color: var(--text-secondary); padding: 4px;
+  border-radius: 4px; display: flex; align-items: center; transition: color 0.15s;
+}
+.automation-step-actions button:hover:not(:disabled) { color: var(--text-primary); }
+.automation-step-actions button:disabled { opacity: 0.3; cursor: default; }
+.btn-remove-step:hover { color: var(--error) !important; }
+
+.automation-editor-footer { display: flex; gap: 8px; margin-top: 8px; }
+
+/* --- Automation execute / preview --- */
+.automation-execute { display: flex; flex-direction: column; gap: 14px; }
+
+.automation-preview {
+  padding: 14px; background: var(--bg-secondary); border: 1px solid var(--border-color);
+  border-radius: 10px;
+}
+.automation-preview-desc { font-size: 13px; color: var(--text-secondary); margin-bottom: 12px; }
+
+.automation-preview-steps { display: flex; flex-direction: column; gap: 6px; }
+
+.automation-preview-step {
+  display: flex; align-items: center; gap: 8px; font-size: 12px;
+}
+.automation-preview-num {
+  width: 18px; height: 18px; display: flex; align-items: center; justify-content: center;
+  background: var(--bg-tertiary); border-radius: 50%; font-size: 10px;
+  font-weight: 700; color: var(--text-secondary); flex-shrink: 0;
+}
+.automation-preview-action { font-weight: 600; color: var(--accent); flex-shrink: 0; }
+.automation-preview-label { color: var(--text-secondary); }
+.automation-preview-target { background: var(--bg-tertiary); padding: 1px 6px; border-radius: 4px; font-size: 11px; color: var(--text-primary); }
+.automation-preview-value { color: var(--text-secondary); font-style: italic; }
+
+/* --- Automation schedule --- */
+.automation-schedule { display: flex; flex-direction: column; gap: 14px; }
+
+/* --- Flag danger styles --- */
+.flag-item-danger { border-left: 2px solid var(--warning); padding-left: 8px; }
+.flag-danger-badge {
+  display: inline-block; margin-left: 4px; font-size: 11px;
+  color: var(--warning); cursor: help;
+}

@@ -59,6 +59,13 @@ beforeEach(() => {
   wailsMocks.CheckAllLoginStatus.mockResolvedValue([]);
   wailsMocks.PurgeSession.mockResolvedValue({ id: 'instagram', name: 'Instagram', loggedIn: false, username: '', sessionDir: '/tmp' });
   wailsMocks.ImportCookies.mockResolvedValue({ id: 'instagram', name: 'Instagram', loggedIn: true, username: 'testuser' });
+  wailsMocks.GetAutomations.mockResolvedValue([]);
+  wailsMocks.SaveAutomation.mockResolvedValue({
+    id: 'auto-1', platformId: 'instagram', name: 'Test Automation', description: '',
+    steps: [], createdAt: '2024-01-01T00:00:00Z', lastRun: '', runCount: 0,
+  });
+  wailsMocks.DeleteAutomation.mockResolvedValue(true);
+  wailsMocks.RunAutomation.mockResolvedValue({ success: true, message: 'Automation completed successfully' });
 });
 
 describe('App', () => {

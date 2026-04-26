@@ -62,3 +62,12 @@ export const PauseSchedule = vi.fn().mockResolvedValue({ id: '1', status: 'pause
 export const ResumeSchedule = vi.fn().mockResolvedValue({ id: '1', status: 'active', name: 'Test' });
 export const PurgeSession = vi.fn().mockResolvedValue({ id: 'instagram', name: 'Instagram', loggedIn: false, username: '', sessionDir: '/tmp' });
 export const SelectFile = vi.fn().mockResolvedValue('/tmp/photo.jpg');
+export const GetAutomations = vi.fn().mockResolvedValue([]);
+export const SaveAutomation = vi.fn().mockResolvedValue({
+  id: 'auto-1', platformId: 'instagram', name: 'Test Automation', description: '',
+  steps: [], createdAt: '2024-01-01T00:00:00Z', lastRun: '', runCount: 0,
+});
+export const DeleteAutomation = vi.fn().mockResolvedValue(true);
+export const RunAutomation = vi.fn().mockResolvedValue({ success: true, message: 'Automation completed successfully' });
+export const GetScheduleStats = vi.fn().mockResolvedValue({ totalRuns: 0, lastResult: '' });
+export const UpdateSchedule = vi.fn().mockResolvedValue({ id: '1', status: 'active' });

@@ -112,7 +112,7 @@ func LoadWorkflow(platform string) (*Workflow, error) {
 // SaveWorkflow saves a workflow to the workflows directory as <platform>_upload.json.
 func SaveWorkflow(w *Workflow) error {
 	dir := GetWorkflowsDir()
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0700); err != nil {
 		return fmt.Errorf("failed to create workflows directory: %w", err)
 	}
 
@@ -123,7 +123,7 @@ func SaveWorkflow(w *Workflow) error {
 		return fmt.Errorf("failed to marshal workflow: %w", err)
 	}
 
-	if err := os.WriteFile(filename, data, 0644); err != nil {
+	if err := os.WriteFile(filename, data, 0600); err != nil {
 		return fmt.Errorf("failed to write workflow file %s: %w", filename, err)
 	}
 

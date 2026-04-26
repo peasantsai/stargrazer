@@ -2,6 +2,7 @@ package browser
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -88,7 +89,7 @@ func (m *Manager) StartWithOptions(sessionDir, initialURL string) error {
 	if _, err := os.Stat(chromiumPath); err != nil {
 		m.status = StatusError
 		m.lastErr = fmt.Sprintf("chromium not found at: %s", chromiumPath)
-		return fmt.Errorf("%s", m.lastErr)
+		return errors.New(m.lastErr)
 	}
 
 	args := m.buildArgs(cfg)
@@ -141,10 +142,10 @@ func (m *Manager) Stop() error {
 	if runtime.GOOS == "windows" {
 		// taskkill /T kills the process tree, /F forces it
 		kill := exec.Command("taskkill", "/T", "/F", "/PID", strconv.Itoa(pid))
-		kill.Run()
+		_ = kill.Run()
 	} else {
 		// Negative PID sends signal to the process group
-		m.cmd.Process.Kill()
+		_ = m.cmd.Process.Kill()
 	}
 
 	m.mu.Unlock()
@@ -370,10 +371,14 @@ type cdpTarget struct {
 	WebSocketDebugURL string `json:"webSocketDebuggerUrl"`
 }
 
+// httpClient is a shared client with a reasonable timeout so CDP requests
+// don't block indefinitely (SonarQube S2301 / CWE-400).
+var httpClient = &http.Client{Timeout: 10 * time.Second}
+
 // GetCDPTargets lists all debuggable targets from the CDP endpoint.
 func (m *Manager) GetCDPTargets() ([]cdpTarget, error) {
 	port := config.GetBrowser().CDPPort
-	resp, err := http.Get(fmt.Sprintf("http://127.0.0.1:%d/json", port))
+	resp, err := httpClient.Get(fmt.Sprintf("http://127.0.0.1:%d/json", port))
 	if err != nil {
 		return nil, fmt.Errorf("CDP targets: %w", err)
 	}
@@ -685,7 +690,7 @@ func (m *Manager) NavigateToURL(targetURL string) error {
 func (m *Manager) OpenNewTab(targetURL string) (string, error) {
 	port := config.GetBrowser().CDPPort
 	// Use the /json/new endpoint to create a new tab
-	resp, err := http.Get(fmt.Sprintf("http://127.0.0.1:%d/json/new?%s", port, url.QueryEscape(targetURL)))
+	resp, err := httpClient.Get(fmt.Sprintf("http://127.0.0.1:%d/json/new?%s", port, url.QueryEscape(targetURL)))
 	if err != nil {
 		return "", fmt.Errorf("creating new tab: %w", err)
 	}
@@ -769,4 +774,62 @@ func LoadCookiesFromDisk(platform, dataDir string) ([]CDPCookie, error) {
 		return nil, err
 	}
 	return cookies, nil
+}
+
+// --- Automation step execution via CDP ---
+
+// ClickElement clicks the first DOM element matching selector in the active page.
+func (m *Manager) ClickElement(selector string) error {
+	wsURL, err := m.findAnyPageTarget()
+	if err != nil {
+		return err
+	}
+	js := fmt.Sprintf(`(function(){const el=document.querySelector(%q);if(!el)throw new Error("selector not found: %s");el.click();})()`, selector, selector)
+	_, err = m.cdpEval(wsURL, js)
+	return err
+}
+
+// TypeText sets the value of the first element matching selector and dispatches an input event.
+func (m *Manager) TypeText(selector, text string) error {
+	wsURL, err := m.findAnyPageTarget()
+	if err != nil {
+		return err
+	}
+	// Use native setter so React/Vue controlled inputs receive the change.
+	js := fmt.Sprintf(`(function(){
+		const el = document.querySelector(%q);
+		if (!el) throw new Error("selector not found: %s");
+		el.focus();
+		const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype,'value')?.set
+			?? Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype,'value')?.set;
+		if (setter) { setter.call(el, %q); } else { el.value = %q; el.textContent = %q; }
+		el.dispatchEvent(new Event('input', {bubbles:true}));
+		el.dispatchEvent(new Event('change', {bubbles:true}));
+	})()`, selector, selector, text, text, text)
+	_, err = m.cdpEval(wsURL, js)
+	return err
+}
+
+// EvaluateExpression runs arbitrary JS in the active page and returns the raw JSON result.
+func (m *Manager) EvaluateExpression(expression string) (string, error) {
+	wsURL, err := m.findAnyPageTarget()
+	if err != nil {
+		return "", err
+	}
+	raw, err := m.cdpEval(wsURL, expression)
+	if err != nil {
+		return "", err
+	}
+	return string(raw), nil
+}
+
+// ScrollToElement scrolls the first element matching selector into the viewport.
+func (m *Manager) ScrollToElement(selector string) error {
+	wsURL, err := m.findAnyPageTarget()
+	if err != nil {
+		return err
+	}
+	js := fmt.Sprintf(`document.querySelector(%q)?.scrollIntoView({behavior:'smooth',block:'center'})`, selector)
+	_, err = m.cdpEval(wsURL, js)
+	return err
 }

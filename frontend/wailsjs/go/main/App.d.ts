@@ -11,9 +11,13 @@ export function ClearLogs():Promise<void>;
 
 export function CreateSchedule(arg1:main.CreateScheduleRequest):Promise<main.ScheduleResponse>;
 
+export function DeleteAutomation(arg1:string,arg2:string):Promise<boolean>;
+
 export function DeleteSchedule(arg1:string):Promise<boolean>;
 
 export function ExportLogs():Promise<string>;
+
+export function GetAutomations(arg1:string):Promise<Array<main.AutomationPayload>>;
 
 export function GetBrowserConfig():Promise<main.BrowserConfigResponse>;
 
@@ -40,6 +44,10 @@ export function ResetBrowserConfig():Promise<main.BrowserConfigResponse>;
 export function RestartBrowser():Promise<main.BrowserStatusResponse>;
 
 export function ResumeSchedule(arg1:string):Promise<main.ScheduleResponse>;
+
+export function RunAutomation(arg1:string,arg2:string):Promise<main.RunAutomationResponse>;
+
+export function SaveAutomation(arg1:string,arg2:main.AutomationPayload):Promise<main.AutomationPayload>;
 
 export function SelectFile():Promise<string>;
 
