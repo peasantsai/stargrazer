@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   GetAutomations, SaveAutomation, DeleteAutomation, RunAutomation, CreateSchedule,
 } from '../../wailsjs/go/main/App';
@@ -448,11 +448,11 @@ export function PlatformPage({ platformId, platformName, sidebarOpen, onToggleSi
   const [tab, setTab] = useState<Tab>('define');
   const [automations, setAutomations] = useState<AutomationData[]>([]);
 
-  const loadAutomations = () => {
+  const loadAutomations = useCallback(() => {
     GetAutomations(platformId).then(data => setAutomations(data as unknown as AutomationData[]));
-  };
+  }, [platformId]);
 
-  useEffect(() => { loadAutomations(); }, [platformId]);
+  useEffect(() => { loadAutomations(); }, [loadAutomations]);
 
   const handleDeleted = async (id: string) => {
     await DeleteAutomation(platformId, id);
