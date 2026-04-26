@@ -4,10 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strconv"
+	"strings"
 	"time"
 
 	"stargrazer/internal/automation"
@@ -312,13 +314,24 @@ func (a *App) ImportCookies(platformID, cookieText string) PlatformResponse {
 		}
 	}
 
-	// Extract username
+	// Extract username / user ID from platform-specific cookies.
+	// Facebook:  c_user      = numeric user ID
+	// Instagram: ds_user_id  = numeric user ID
+	// TikTok:    uid_tt      = numeric user ID (may not be present in all sessions)
+	// X:         twid        = URL-encoded "u=<numeric_id>"
+	// LinkedIn/YouTube: no standard cookie exposes the username; shown as "Connected"
 	username := ""
 	for _, c := range cookies {
+		if username != "" {
+			break
+		}
 		switch c.Name {
-		case "c_user", "ds_user_id":
-			if username == "" {
-				username = c.Value
+		case "c_user", "ds_user_id", "uid_tt":
+			username = c.Value
+		case "twid":
+			// twid value is URL-encoded: u%3D<user_id>
+			if decoded, err := url.QueryUnescape(c.Value); err == nil {
+				username = strings.TrimPrefix(decoded, "u=")
 			}
 		}
 	}

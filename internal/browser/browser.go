@@ -724,13 +724,23 @@ func (m *Manager) HasCookies(domains, cookieNames []string) (bool, string, error
 	// If we found any of the expected login cookies, consider logged in
 	loggedIn := found > 0
 
-	// Try to extract a username from common cookie patterns
+	// Extract username / user ID from platform-specific cookies.
+	// Facebook:  c_user      = numeric user ID
+	// Instagram: ds_user_id  = numeric user ID
+	// TikTok:    uid_tt      = numeric user ID
+	// X:         twid        = URL-encoded "u=<numeric_id>"
+	// LinkedIn/YouTube: no standard cookie exposes the username; shown as "Connected"
 	username := ""
 	for _, c := range cookies {
+		if username != "" {
+			break
+		}
 		switch c.Name {
-		case "c_user", "ds_user_id", "login_email":
-			if username == "" {
-				username = c.Value
+		case "c_user", "ds_user_id", "uid_tt":
+			username = c.Value
+		case "twid":
+			if decoded, err := url.QueryUnescape(c.Value); err == nil {
+				username = strings.TrimPrefix(decoded, "u=")
 			}
 		}
 	}
