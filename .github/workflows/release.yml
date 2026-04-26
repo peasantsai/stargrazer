@@ -4,26 +4,79 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version tag (e.g. v1.0.0). Leave empty for dry-run build only.'
+        required: false
+        default: ''
+      dry_run:
+        description: 'Dry run — build only, no tag/release'
+        type: boolean
+        default: true
 
 permissions:
   contents: write
 
 jobs:
-  create-release-branch:
+  prepare:
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.resolve.outputs.version }}
+      is_release: ${{ steps.resolve.outputs.is_release }}
+      prev_tag: ${{ steps.resolve.outputs.prev_tag }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Create release branch
-        run: |
-          VERSION=${GITHUB_REF#refs/tags/}
-          git checkout -b release/$VERSION
-          git push origin release/$VERSION
 
-  # Active builds
+      - name: Resolve version and mode
+        id: resolve
+        run: |
+          if [[ "${{ github.event_name }}" == "push" ]]; then
+            # Triggered by tag push
+            VERSION=${GITHUB_REF#refs/tags/}
+            echo "version=$VERSION" >> $GITHUB_OUTPUT
+            echo "is_release=true" >> $GITHUB_OUTPUT
+          elif [[ -n "${{ inputs.version }}" && "${{ inputs.dry_run }}" == "false" ]]; then
+            # Manual dispatch with version — full release
+            VERSION="${{ inputs.version }}"
+            # Ensure v prefix
+            [[ "$VERSION" != v* ]] && VERSION="v$VERSION"
+            echo "version=$VERSION" >> $GITHUB_OUTPUT
+            echo "is_release=true" >> $GITHUB_OUTPUT
+          else
+            # Dry run
+            echo "version=dry-run" >> $GITHUB_OUTPUT
+            echo "is_release=false" >> $GITHUB_OUTPUT
+          fi
+
+          # Find previous tag for changelog
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+          echo "prev_tag=$PREV_TAG" >> $GITHUB_OUTPUT
+          echo "Version: $(cat $GITHUB_OUTPUT | grep version)"
+          echo "Is release: $(cat $GITHUB_OUTPUT | grep is_release)"
+          echo "Previous tag: $PREV_TAG"
+
+      - name: Create and push tag
+        if: steps.resolve.outputs.is_release == 'true' && github.event_name == 'workflow_dispatch'
+        run: |
+          VERSION="${{ steps.resolve.outputs.version }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "$VERSION" -m "Release $VERSION"
+          git push origin "$VERSION"
+
+      - name: Create release branch
+        if: steps.resolve.outputs.is_release == 'true'
+        run: |
+          VERSION="${{ steps.resolve.outputs.version }}"
+          git checkout -b "release/$VERSION"
+          git push origin "release/$VERSION" || true
+
+  # Builds — always run (dry-run or release)
   build-linux-amd64:
-    needs: create-release-branch
+    needs: prepare
     uses: ./.github/workflows/build.yml
     with:
       os: ubuntu-latest
@@ -33,10 +86,10 @@ jobs:
       artifact_name: stargrazer-linux-amd64
       chromium_url: "https://github.com/ungoogled-software/ungoogled-chromium-portablelinux/releases/download/146.0.7680.177-1/ungoogled-chromium-146.0.7680.177-1-x86_64_linux.tar.xz"
       chromium_cache_key: chromium-linux-x64
-      version: ${{ github.ref_name }}
+      version: ${{ needs.prepare.outputs.version }}
 
   build-windows-amd64:
-    needs: create-release-branch
+    needs: prepare
     uses: ./.github/workflows/build.yml
     with:
       os: windows-latest
@@ -44,12 +97,12 @@ jobs:
       goarch: amd64
       platform: windows/amd64
       artifact_name: stargrazer-windows-amd64
-      chromium_url: "https://github.com/nicehash/nicern/releases/download/1/nicern.7z"
+      chromium_url: "https://github.com/ungoogled-software/ungoogled-chromium-windows/releases/download/147.0.7727.101-1.1/ungoogled-chromium_147.0.7727.101-1.1_installer_x64.exe"
       chromium_cache_key: chromium-windows-x64
-      version: ${{ github.ref_name }}
+      version: ${{ needs.prepare.outputs.version }}
 
   build-windows-arm64:
-    needs: create-release-branch
+    needs: prepare
     uses: ./.github/workflows/build.yml
     with:
       os: windows-latest
@@ -59,10 +112,10 @@ jobs:
       artifact_name: stargrazer-windows-arm64
       chromium_url: "https://github.com/ungoogled-software/ungoogled-chromium-windows/releases/download/147.0.7727.101-1.1/ungoogled-chromium_147.0.7727.101-1.1_installer_arm64.exe"
       chromium_cache_key: chromium-windows-arm64
-      version: ${{ github.ref_name }}
+      version: ${{ needs.prepare.outputs.version }}
 
   build-macos-arm64:
-    needs: create-release-branch
+    needs: prepare
     uses: ./.github/workflows/build.yml
     with:
       os: macos-latest
@@ -72,40 +125,27 @@ jobs:
       artifact_name: stargrazer-macos-arm64
       chromium_url: "https://github.com/claudiodekker/ungoogled-chromium-macos/releases/download/130.0.6723.91-1.1/ungoogled-chromium_130.0.6723.91-1.1_arm64-macos-signed.dmg"
       chromium_cache_key: chromium-macos-arm64
-      version: ${{ github.ref_name }}
+      version: ${{ needs.prepare.outputs.version }}
 
-  # Disabled builds (uncomment when ready)
+  # Disabled builds
   # build-linux-arm64:
-  #   needs: create-release-branch
+  #   needs: prepare
   #   uses: ./.github/workflows/build.yml
-  #   with:
-  #     os: ubuntu-latest
-  #     goos: linux
-  #     goarch: arm64
-  #     platform: linux/arm64
-  #     artifact_name: stargrazer-linux-arm64
-  #     chromium_url: "https://github.com/ungoogled-software/ungoogled-chromium-portablelinux/releases/download/147.0.7727.55-1/ungoogled-chromium-147.0.7727.55-1-arm64_linux.tar.xz"
-  #     chromium_cache_key: chromium-linux-arm64
-  #     version: ${{ github.ref_name }}
-
+  #   with: { os: ubuntu-latest, goos: linux, goarch: arm64, platform: linux/arm64, artifact_name: stargrazer-linux-arm64, chromium_url: "...", chromium_cache_key: chromium-linux-arm64, version: "${{ needs.prepare.outputs.version }}" }
   # build-macos-amd64:
-  #   needs: create-release-branch
+  #   needs: prepare
   #   uses: ./.github/workflows/build.yml
-  #   with:
-  #     os: macos-13
-  #     goos: darwin
-  #     goarch: amd64
-  #     platform: darwin/amd64
-  #     artifact_name: stargrazer-macos-amd64
-  #     chromium_url: "https://github.com/claudiodekker/ungoogled-chromium-macos/releases/download/130.0.6723.91-1.1/ungoogled-chromium_130.0.6723.91-1.1_x86-64-macos-signed.dmg"
-  #     chromium_cache_key: chromium-macos-x64
-  #     version: ${{ github.ref_name }}
+  #   with: { os: macos-13, goos: darwin, goarch: amd64, platform: darwin/amd64, artifact_name: stargrazer-macos-amd64, chromium_url: "...", chromium_cache_key: chromium-macos-x64, version: "${{ needs.prepare.outputs.version }}" }
 
+  # Publish — only on real release (not dry-run)
   publish:
-    needs: [build-linux-amd64, build-windows-amd64, build-windows-arm64, build-macos-arm64]
+    needs: [prepare, build-linux-amd64, build-windows-amd64, build-windows-arm64, build-macos-arm64]
+    if: needs.prepare.outputs.is_release == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Download all artifacts
         uses: actions/download-artifact@v4
@@ -119,32 +159,59 @@ jobs:
           echo "Release files:"
           ls -lh release-files/
 
+      - name: Generate changelog
+        id: changelog
+        run: |
+          VERSION="${{ needs.prepare.outputs.version }}"
+          PREV_TAG="${{ needs.prepare.outputs.prev_tag }}"
+
+          echo "## Changelog" > changelog.md
+          echo "" >> changelog.md
+
+          if [ -n "$PREV_TAG" ]; then
+            echo "Changes since \`$PREV_TAG\`:" >> changelog.md
+            echo "" >> changelog.md
+            git log "$PREV_TAG"..HEAD --pretty=format:"- %s (\`%h\`)" --no-merges >> changelog.md
+          else
+            echo "Initial release." >> changelog.md
+            echo "" >> changelog.md
+            git log --pretty=format:"- %s (\`%h\`)" --no-merges >> changelog.md
+          fi
+
+          echo "" >> changelog.md
+
       - name: Generate release notes
         run: |
-          VERSION=${GITHUB_REF#refs/tags/}
-          cat > release-notes.md << NOTES
+          VERSION="${{ needs.prepare.outputs.version }}"
+
+          cat > release-notes.md << HEADER
           ## Stargrazer ${VERSION}
 
           ### Downloads
 
-          | Platform | Architecture | File |
-          |----------|-------------|------|
-          NOTES
+          | Platform | Architecture | File | Size |
+          |----------|-------------|------|------|
+          HEADER
 
           for f in release-files/*; do
             fname=$(basename "$f")
             size=$(du -h "$f" | cut -f1)
             case "$fname" in
-              *linux-amd64*) echo "| Linux | x86_64 | [$fname]($fname) ($size) |" >> release-notes.md ;;
-              *windows-amd64*setup*) echo "| Windows | x64 (Installer) | [$fname]($fname) ($size) |" >> release-notes.md ;;
-              *windows-amd64*.zip) echo "| Windows | x64 (Portable) | [$fname]($fname) ($size) |" >> release-notes.md ;;
-              *windows-arm64*setup*) echo "| Windows | ARM64 (Installer) | [$fname]($fname) ($size) |" >> release-notes.md ;;
-              *windows-arm64*.zip) echo "| Windows | ARM64 (Portable) | [$fname]($fname) ($size) |" >> release-notes.md ;;
-              *macos-arm64*) echo "| macOS | Apple Silicon | [$fname]($fname) ($size) |" >> release-notes.md ;;
+              *linux-amd64*.tar.gz)       echo "| Linux | x86_64 | \`$fname\` | $size |" >> release-notes.md ;;
+              *windows-amd64*setup*)      echo "| Windows | x64 (Installer) | \`$fname\` | $size |" >> release-notes.md ;;
+              *windows-amd64*.zip)        echo "| Windows | x64 (Portable) | \`$fname\` | $size |" >> release-notes.md ;;
+              *windows-arm64*setup*)      echo "| Windows | ARM64 (Installer) | \`$fname\` | $size |" >> release-notes.md ;;
+              *windows-arm64*.zip)        echo "| Windows | ARM64 (Portable) | \`$fname\` | $size |" >> release-notes.md ;;
+              *macos-arm64*)              echo "| macOS | Apple Silicon | \`$fname\` | $size |" >> release-notes.md ;;
             esac
           done
 
-          cat >> release-notes.md << NOTES
+          # Append changelog
+          echo "" >> release-notes.md
+          cat changelog.md >> release-notes.md
+
+          # Append footer
+          cat >> release-notes.md << FOOTER
 
           ### What's included
           - Bundled Ungoogled Chromium with stealth configuration
@@ -160,14 +227,18 @@ jobs:
 
           ---
           *Built with [Wails v2](https://wails.io) + Go + React + TypeScript*
-          NOTES
+          FOOTER
+
+          echo "=== Release Notes ==="
+          cat release-notes.md
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ needs.prepare.outputs.version }}
           body_path: release-notes.md
           files: release-files/*
           draft: false
-          prerelease: ${{ contains(github.ref, 'alpha') || contains(github.ref, 'beta') || contains(github.ref, 'rc') }}
+          prerelease: ${{ contains(needs.prepare.outputs.version, 'alpha') || contains(needs.prepare.outputs.version, 'beta') || contains(needs.prepare.outputs.version, 'rc') }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
