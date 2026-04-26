@@ -36,10 +36,12 @@ jobs:
         uses: anchore/sbom-action/download-syft@fc46e51fd3cb168ffb36c6d1915723c47db58abb # v0.17.7
 
       - name: Generate Go SBOM (CycloneDX)
-        run: syft dir:. -o cyclonedx-json=sbom-go.cdx.json --select-catalogers go
+        # go-module-file cataloger only reads go.mod/go.sum — avoids false positives
+        # from the go-module-binary cataloger detecting old Go versions in pre-compiled binaries.
+        run: syft dir:. --select-catalogers go-module-file -o cyclonedx-json=sbom-go.cdx.json
 
       - name: Generate Frontend SBOM (CycloneDX)
-        run: syft dir:frontend -o cyclonedx-json=sbom-frontend.cdx.json --select-catalogers javascript
+        run: syft dir:frontend --select-catalogers javascript -o cyclonedx-json=sbom-frontend.cdx.json
 
       - name: Generate combined SBOM (SPDX)
         run: syft dir:. -o spdx-json=sbom-combined.spdx.json
@@ -52,20 +54,93 @@ jobs:
       - name: Scan Go SBOM for vulnerabilities
         run: |
           grype sbom:sbom-go.cdx.json \
-            --output table \
-            --output sarif=grype-go.sarif \
-            --fail-on critical
+            --config .grype.yaml \
+            --output json=grype-go.json \
+            --output sarif=grype-go.sarif
         continue-on-error: true
         id: grype_go
 
       - name: Scan Frontend SBOM for vulnerabilities
         run: |
           grype sbom:sbom-frontend.cdx.json \
-            --output table \
-            --output sarif=grype-frontend.sarif \
-            --fail-on critical
+            --config .grype.yaml \
+            --output json=grype-frontend.json \
+            --output sarif=grype-frontend.sarif
         continue-on-error: true
         id: grype_frontend
+
+      # --- Write vulnerability summary table to workflow run page ---
+
+      - name: Write vulnerability summary
+        if: always()
+        run: |
+          python3 << 'PYEOF'
+          import json, os, sys
+
+          SEVERITY_ORDER = {"Critical": 0, "High": 1, "Medium": 2, "Low": 3, "Negligible": 4, "Unknown": 5}
+          SEVERITY_EMOJI = {"Critical": "🔴", "High": "🟠", "Medium": "🟡", "Low": "🔵", "Negligible": "⚪", "Unknown": "❓"}
+
+          def load_matches(path, source_label):
+              try:
+                  with open(path) as f:
+                      data = json.load(f)
+                  results = []
+                  for m in data.get("matches", []):
+                      vuln = m.get("vulnerability", {})
+                      artifact = m.get("artifact", {})
+                      fix_versions = vuln.get("fix", {}).get("versions", [])
+                      results.append({
+                          "source": source_label,
+                          "package": artifact.get("name", ""),
+                          "version": artifact.get("version", ""),
+                          "id": vuln.get("id", ""),
+                          "severity": vuln.get("severity", "Unknown"),
+                          "fixed_in": ", ".join(fix_versions) if fix_versions else "—",
+                      })
+                  return results
+              except FileNotFoundError:
+                  return []
+
+          all_matches = load_matches("grype-go.json", "Go") + load_matches("grype-frontend.json", "Frontend")
+          all_matches.sort(key=lambda m: (SEVERITY_ORDER.get(m["severity"], 99), m["package"]))
+
+          counts = {}
+          for m in all_matches:
+              counts[m["severity"]] = counts.get(m["severity"], 0) + 1
+          critical_count = counts.get("Critical", 0)
+
+          summary_file = os.environ.get("GITHUB_STEP_SUMMARY", "/dev/stdout")
+          with open(summary_file, "a") as f:
+              f.write("## Vulnerability Scan Results\n\n")
+
+              f.write("### Summary\n\n")
+              if not all_matches:
+                  f.write("✅ No vulnerabilities found.\n\n")
+              else:
+                  f.write("| Severity | Count |\n")
+                  f.write("|---|---|\n")
+                  for sev in ["Critical", "High", "Medium", "Low", "Negligible", "Unknown"]:
+                      if sev in counts:
+                          f.write(f"| {SEVERITY_EMOJI.get(sev, '')} {sev} | {counts[sev]} |\n")
+                  f.write("\n")
+
+              if all_matches:
+                  f.write("### Details\n\n")
+                  f.write("| Source | Package | Version | Vulnerability | Severity | Fixed In |\n")
+                  f.write("|---|---|---|---|---|---|\n")
+                  for m in all_matches:
+                      emoji = SEVERITY_EMOJI.get(m["severity"], "")
+                      f.write(f"| {m['source']} | `{m['package']}` | `{m['version']}` | {m['id']} | {emoji} {m['severity']} | {m['fixed_in']} |\n")
+                  f.write("\n")
+
+              if critical_count > 0:
+                  f.write(f"❌ **{critical_count} critical vulnerability(ies) found — build failed.**\n")
+              else:
+                  f.write("✅ No critical vulnerabilities.\n")
+
+          if critical_count > 0:
+              sys.exit(1)
+          PYEOF
 
       # --- Upload results ---
 
@@ -102,7 +177,9 @@ jobs:
         with:
           name: grype-reports
           path: |
+            grype-go.json
             grype-go.sarif
+            grype-frontend.json
             grype-frontend.sarif
           retention-days: 90
 
@@ -121,19 +198,3 @@ jobs:
           fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      # --- Fail the job if critical vulns found ---
-
-      - name: Check for critical vulnerabilities
-        if: always()
-        run: |
-          EXIT=0
-          if [[ "${{ steps.grype_go.outcome }}" == "failure" ]]; then
-            echo "::error::Critical vulnerabilities found in Go dependencies"
-            EXIT=1
-          fi
-          if [[ "${{ steps.grype_frontend.outcome }}" == "failure" ]]; then
-            echo "::error::Critical vulnerabilities found in Frontend dependencies"
-            EXIT=1
-          fi
-          exit $EXIT

@@ -420,7 +420,7 @@ function ScheduleTab({ platformId, automations, addMessage }: {
             </button>
           ))}
         </div>
-        {interval === 'custom' && (
+        {scheduleInterval === 'custom' && (
           <input
             type="text"
             value={cronExpr}

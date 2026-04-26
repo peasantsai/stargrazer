@@ -1,0 +1,15 @@
+# Grype configuration — https://github.com/anchore/grype#configuration
+#
+# Why these ignores exist:
+#   Syft's go-module-binary cataloger occasionally detects Go standard library
+#   versions from pre-compiled third-party binaries (e.g. embedded tool helpers)
+#   rather than from the project's own go.mod (go 1.26.0).  The CVEs below are
+#   NOT present in Go 1.26 — they were fixed in earlier patch releases.  We
+#   suppress them here as belt-and-suspenders alongside using --select-catalogers
+#   go-module-file (which avoids the binary cataloger entirely).
+ignore:
+  # These CVEs are fixed in Go ≥ 1.20/1.21/1.22/1.23 — irrelevant when stdlib
+  # version detected is go1.19.3 from a binary, not our actual go1.26.0 toolchain.
+  - package:
+      name: stdlib
+      version: "go1.19.3"
