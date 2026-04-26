@@ -59,10 +59,17 @@ function App() {
   const handleStopBrowser = async () => {
     setLoading(true);
     addMessage('system', 'Stopping browser...');
-    const res = await StopBrowser();
-    setBrowserStatus(res.status);
-    addMessage('info', 'Browser stopped.');
-    setLoading(false);
+    try {
+      const res = await StopBrowser();
+      setBrowserStatus(res.status);
+      addMessage(res.status === 'stopped' ? 'info' : 'error',
+        res.status === 'stopped' ? 'Browser stopped.' : `Stop failed: ${res.error}`);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      addMessage('error', `Stop error: ${msg}`);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const renderPanel = () => {

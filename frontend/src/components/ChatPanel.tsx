@@ -117,7 +117,7 @@ export function ChatPanel({
           {isRunning ? (
             <button className="btn-danger" onClick={onStop} disabled={loading}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
-              Stop Browser
+              {loading ? 'Stopping...' : 'Stop Browser'}
             </button>
           ) : (
             <button className="btn-primary" onClick={onStart} disabled={loading}>

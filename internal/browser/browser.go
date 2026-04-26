@@ -138,15 +138,14 @@ func (m *Manager) Stop() error {
 	pid := m.cmd.Process.Pid
 	done := m.done
 
-	// On Windows, kill the entire process tree. On other OS, kill the process group.
+	// On Windows, kill the entire process tree first (handles renderer/GPU child processes).
+	// Then always call Process.Kill() directly — ensures the main process handle is
+	// terminated even if taskkill fails or the process tree has already detached.
 	if runtime.GOOS == "windows" {
-		// taskkill /T kills the process tree, /F forces it
 		kill := exec.Command("taskkill", "/T", "/F", "/PID", strconv.Itoa(pid))
 		_ = kill.Run()
-	} else {
-		// Negative PID sends signal to the process group
-		_ = m.cmd.Process.Kill()
 	}
+	_ = m.cmd.Process.Kill()
 
 	m.mu.Unlock()
 
