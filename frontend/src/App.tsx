@@ -100,12 +100,26 @@ function useTheme(): [Theme, (t: Theme) => void] {
 }
 
 function useAccount(): [AccountInfo, (a: Partial<AccountInfo>) => void] {
+  const defaults: AccountInfo = { name: 'User', email: '', avatarUrl: '' };
   const [account, setAccountState] = useState<AccountInfo>(() => {
-    const saved = localStorage.getItem('stargrazer-account');
-    return saved ? JSON.parse(saved) : { name: 'User', email: '', avatarUrl: '' };
+    try {
+      const saved = localStorage.getItem('stargrazer-account');
+      if (!saved) return defaults;
+      const parsed = JSON.parse(saved);
+      // Validate shape before trusting stored data
+      return {
+        name: typeof parsed.name === 'string' ? parsed.name : defaults.name,
+        email: typeof parsed.email === 'string' ? parsed.email : defaults.email,
+        avatarUrl: typeof parsed.avatarUrl === 'string' ? parsed.avatarUrl : defaults.avatarUrl,
+      };
+    } catch { return defaults; }
   });
   const updateAccount = (partial: Partial<AccountInfo>) => {
-    const next = { ...account, ...partial };
+    const next: AccountInfo = {
+      name: typeof partial.name === 'string' ? partial.name : account.name,
+      email: typeof partial.email === 'string' ? partial.email : account.email,
+      avatarUrl: typeof partial.avatarUrl === 'string' ? partial.avatarUrl : account.avatarUrl,
+    };
     setAccountState(next);
     localStorage.setItem('stargrazer-account', JSON.stringify(next));
   };

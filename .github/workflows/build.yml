@@ -32,6 +32,12 @@ on:
 jobs:
   build:
     runs-on: ${{ inputs.os }}
+    env:
+      BUILD_GOOS: ${{ inputs.goos }}
+      BUILD_PLATFORM: ${{ inputs.platform }}
+      BUILD_VERSION: ${{ inputs.version }}
+      BUILD_ARTIFACT: ${{ inputs.artifact_name }}
+      CHROMIUM_URL: ${{ inputs.chromium_url }}
     steps:
       - uses: actions/checkout@v6
 
@@ -43,12 +49,10 @@ jobs:
         with:
           node-version: '24'
 
-      # Platform dependencies (gtk/webkit/gstreamer on linux, nsis on windows)
       - name: Install dependencies
         shell: bash
-        run: bash scripts/ci/install-deps.sh "${{ inputs.goos }}"
+        run: bash scripts/ci/install-deps.sh "$BUILD_GOOS"
 
-      # Cache Chromium
       - name: Cache Chromium
         id: chromium-cache
         uses: actions/cache@v5
@@ -59,19 +63,18 @@ jobs:
       - name: Download Chromium
         if: steps.chromium-cache.outputs.cache-hit != 'true'
         shell: bash
-        run: bash scripts/ci/download-chromium.sh "${{ inputs.goos }}" "${{ inputs.chromium_url }}" "assets/chromium-bundle"
+        run: bash scripts/ci/download-chromium.sh "$BUILD_GOOS" "$CHROMIUM_URL" "assets/chromium-bundle"
 
       - name: Clean Chromium bundle
         if: steps.chromium-cache.outputs.cache-hit != 'true'
         shell: bash
         run: bash scripts/ci/clean-chromium.sh "assets/chromium-bundle"
 
-      # Install build tools
       - name: Install Wails
         shell: bash
         run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
 
-      - name: Install garble (obfuscation)
+      - name: Install garble
         shell: bash
         run: go install mvdan.cc/garble@latest
 
@@ -79,27 +82,23 @@ jobs:
         if: inputs.goos == 'linux'
         run: sudo apt-get install -y upx-ucl
 
-      # Build (follows wails platform guides)
       - name: Build
         shell: bash
         env:
           CGO_ENABLED: 1
-        run: bash scripts/ci/build.sh "${{ inputs.goos }}" "${{ inputs.platform }}" "${{ inputs.version }}"
+        run: bash scripts/ci/build.sh "$BUILD_GOOS" "$BUILD_PLATFORM" "$BUILD_VERSION"
 
-      # Post-build: compress linux binary
       - name: Compress with UPX
         if: inputs.goos == 'linux'
         run: upx --best build/bin/stargrazer || true
 
-      # Bundle Chromium + extension into output
       - name: Bundle assets
         shell: bash
         run: bash scripts/ci/bundle-assets.sh "build/bin"
 
-      # Package for distribution
       - name: Package
         shell: bash
-        run: bash scripts/ci/package.sh "${{ inputs.goos }}" "${{ inputs.artifact_name }}" "${{ inputs.version }}"
+        run: bash scripts/ci/package.sh "$BUILD_GOOS" "$BUILD_ARTIFACT" "$BUILD_VERSION"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v7
