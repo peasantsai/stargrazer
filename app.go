@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"time"
 
 	"stargrazer/internal/browser"
@@ -17,6 +18,10 @@ import (
 
 	wailsRuntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
+
+// safePlatformIDPattern ensures platform IDs contain only safe characters,
+// preventing path traversal attacks since platformID is used in file paths.
+var safePlatformIDPattern = regexp.MustCompile(`^[a-z0-9_-]+$`)
 
 // App exposes backend methods to the frontend via Wails bindings.
 type App struct {
@@ -134,7 +139,7 @@ func (a *App) ResetBrowserConfig() BrowserConfigResponse {
 
 func (a *App) UpdateBrowserConfig(update BrowserConfigResponse) BrowserConfigResponse {
 	updated := config.Update(func(c *config.AppConfig) {
-		if update.CDPPort > 0 {
+		if update.CDPPort > 0 && update.CDPPort <= 65535 {
 			c.Browser.CDPPort = update.CDPPort
 		}
 		if update.ChromiumPath != "" {
@@ -258,6 +263,9 @@ func (a *App) PurgeSession(platformID string) PlatformResponse {
 	if platform == nil {
 		return PlatformResponse{ID: platformID}
 	}
+	if !safePlatformIDPattern.MatchString(platformID) {
+		return PlatformResponse{ID: platformID}
+	}
 
 	// Mark as logged out
 	a.sessions.SetLoggedOut(pid)
@@ -272,10 +280,13 @@ func (a *App) PurgeSession(platformID string) PlatformResponse {
 
 // ImportCookies parses Netscape cookie text, saves to disk, injects if browser is running,
 // marks as logged in, and auto-creates a keep-alive schedule.
-func (a *App) ImportCookies(platformID string, cookieText string) PlatformResponse {
+func (a *App) ImportCookies(platformID, cookieText string) PlatformResponse {
 	pid := social.Platform(platformID)
 	platform := social.FindPlatform(pid)
 	if platform == nil {
+		return PlatformResponse{ID: platformID}
+	}
+	if !safePlatformIDPattern.MatchString(platformID) {
 		return PlatformResponse{ID: platformID}
 	}
 
@@ -312,8 +323,8 @@ func (a *App) ImportCookies(platformID string, cookieText string) PlatformRespon
 	dataDir := social.SharedSessionDir()
 	cookieData, _ := json.MarshalIndent(cookies, "", "  ")
 	cookiesDir := filepath.Join(dataDir, "cookies")
-	os.MkdirAll(cookiesDir, 0755)
-	os.WriteFile(filepath.Join(cookiesDir, platformID+".json"), cookieData, 0644)
+	os.MkdirAll(cookiesDir, 0700)
+	os.WriteFile(filepath.Join(cookiesDir, platformID+".json"), cookieData, 0600)
 
 	logger.Info("social", fmt.Sprintf("%s session saved (user: %s)", platform.Name, username))
 
@@ -524,7 +535,7 @@ func (a *App) TriggerUpload(req workflow.UploadRequest) UploadResponse {
 	// Save upload record to disk
 	dataDir := social.SharedSessionDir()
 	uploadsDir := filepath.Join(dataDir, "data", "uploads")
-	os.MkdirAll(uploadsDir, 0755)
+	os.MkdirAll(uploadsDir, 0700)
 	record := map[string]interface{}{
 		"platforms": req.Platforms, "filePath": req.FilePath,
 		"caption": req.Caption, "hashtags": req.Hashtags,
@@ -533,7 +544,7 @@ func (a *App) TriggerUpload(req workflow.UploadRequest) UploadResponse {
 	}
 	recordData, _ := json.MarshalIndent(record, "", "  ")
 	recordFile := filepath.Join(uploadsDir, fmt.Sprintf("upload_%d.json", time.Now().UnixMilli()))
-	os.WriteFile(recordFile, recordData, 0644)
+	os.WriteFile(recordFile, recordData, 0600)
 
 	for _, pid := range req.Platforms {
 		wf, err := workflow.LoadWorkflow(pid)

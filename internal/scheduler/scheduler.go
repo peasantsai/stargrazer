@@ -403,8 +403,8 @@ func (s *Scheduler) persist() {
 		return
 	}
 
-	os.MkdirAll(filepath.Dir(s.filePath), 0755)
-	if err := os.WriteFile(s.filePath, data, 0644); err != nil {
+	os.MkdirAll(filepath.Dir(s.filePath), 0700)
+	if err := os.WriteFile(s.filePath, data, 0600); err != nil {
 		logger.Error("scheduler", fmt.Sprintf("failed to write jobs: %v", err))
 	}
 }

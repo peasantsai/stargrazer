@@ -209,7 +209,7 @@ input, textarea, select { font-family: inherit; font-size: inherit; }
 
 .config-field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; }
 .config-field:last-child { margin-bottom: 0; }
-.config-field label { font-size: 13px; color: var(--text-secondary); font-weight: 500; }
+.config-field label, .config-field .config-field-label { font-size: 13px; color: var(--text-secondary); font-weight: 500; }
 .config-field input[type="text"], .config-field input[type="number"] { padding: 10px 12px; background: var(--bg-tertiary); border: 1px solid var(--border-color); border-radius: 8px; color: var(--text-primary); outline: none; transition: border-color 0.15s; }
 .config-field input:focus { border-color: var(--accent); }
 .config-hint { font-size: 12px; color: var(--text-secondary); opacity: 0.7; }

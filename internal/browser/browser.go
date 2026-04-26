@@ -6,6 +6,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -29,6 +30,8 @@ const (
 	StatusRunning  Status = "running"
 	StatusError    Status = "error"
 )
+
+const errCDPWebsocket = "CDP websocket: %w"
 
 // Manager controls the bundled Chromium browser lifecycle.
 // It is a singleton — only one instance exists app-wide.
@@ -65,7 +68,7 @@ func (m *Manager) Start() error {
 }
 
 // StartWithOptions launches Chromium with an optional session dir override and initial URL.
-func (m *Manager) StartWithOptions(sessionDir string, initialURL string) error {
+func (m *Manager) StartWithOptions(sessionDir, initialURL string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -184,15 +187,28 @@ func (m *Manager) ResolveChromiumPath() string {
 	return m.resolveChromiumPath("")
 }
 
+// findChromiumInAssets searches for the chromium binary in an assets directory.
+func findChromiumInAssets(assetsDir, binary string) string {
+	entries, err := os.ReadDir(assetsDir)
+	if err != nil {
+		return ""
+	}
+	for _, e := range entries {
+		if e.IsDir() {
+			candidate := filepath.Join(assetsDir, e.Name(), binary)
+			if _, err := os.Stat(candidate); err == nil {
+				return candidate
+			}
+		}
+	}
+	return ""
+}
+
 func (m *Manager) resolveChromiumPath(override string) string {
 	if override != "" {
 		return override
 	}
 
-	exe, _ := os.Executable()
-	appDir := filepath.Dir(exe)
-
-	// The bundled chromium sits in assets/ relative to the executable.
 	var binary string
 	switch runtime.GOOS {
 	case "windows":
@@ -203,33 +219,14 @@ func (m *Manager) resolveChromiumPath(override string) string {
 		binary = "chrome"
 	}
 
-	// Walk one level of assets/ looking for the chromium dir.
-	assetsDir := filepath.Join(appDir, "assets")
-	entries, err := os.ReadDir(assetsDir)
-	if err == nil {
-		for _, e := range entries {
-			if e.IsDir() {
-				candidate := filepath.Join(assetsDir, e.Name(), binary)
-				if _, err := os.Stat(candidate); err == nil {
-					return candidate
-				}
-			}
-		}
+	exe, _ := os.Executable()
+	if found := findChromiumInAssets(filepath.Join(filepath.Dir(exe), "assets"), binary); found != "" {
+		return found
 	}
 
-	// Fallback: look relative to working directory (dev mode).
 	cwd, _ := os.Getwd()
-	assetsDir = filepath.Join(cwd, "assets")
-	entries, err = os.ReadDir(assetsDir)
-	if err == nil {
-		for _, e := range entries {
-			if e.IsDir() {
-				candidate := filepath.Join(assetsDir, e.Name(), binary)
-				if _, err := os.Stat(candidate); err == nil {
-					return candidate
-				}
-			}
-		}
+	if found := findChromiumInAssets(filepath.Join(cwd, "assets"), binary); found != "" {
+		return found
 	}
 
 	return binary
@@ -238,7 +235,7 @@ func (m *Manager) resolveChromiumPath(override string) string {
 // pinExtension writes Chrome Preferences to pin the cookies extension in the toolbar.
 func (m *Manager) pinExtension(userDataDir string) {
 	defaultDir := filepath.Join(userDataDir, "Default")
-	os.MkdirAll(defaultDir, 0755)
+	os.MkdirAll(defaultDir, 0700)
 	prefsPath := filepath.Join(defaultDir, "Preferences")
 
 	// Read existing preferences or start fresh
@@ -280,20 +277,20 @@ func (m *Manager) pinExtension(userDataDir string) {
 	prefs["extensions"] = extensions
 
 	data, _ := json.MarshalIndent(prefs, "", "  ")
-	os.WriteFile(prefsPath, data, 0644)
+	os.WriteFile(prefsPath, data, 0600)
 }
 
 // resolveExtensionPath finds the cookies extension in the assets folder.
 func (m *Manager) resolveExtensionPath() string {
 	// Check relative to executable
 	exe, _ := os.Executable()
-	candidate := filepath.Join(filepath.Dir(exe), "assets", "cookies-extension", "0.7.2_0")
+	candidate := filepath.Join(filepath.Dir(exe), "assets", "cookies-extension", "1.0_0")
 	if info, err := os.Stat(candidate); err == nil && info.IsDir() {
 		return candidate
 	}
 	// Fallback: relative to cwd (dev mode)
 	cwd, _ := os.Getwd()
-	candidate = filepath.Join(cwd, "assets", "cookies-extension", "0.7.2_0")
+	candidate = filepath.Join(cwd, "assets", "cookies-extension", "1.0_0")
 	if info, err := os.Stat(candidate); err == nil && info.IsDir() {
 		return candidate
 	}
@@ -433,10 +430,10 @@ func (m *Manager) findAnyPageTarget() (string, error) {
 }
 
 // cdpEval connects to a target and evaluates a JS expression, returning raw JSON result.
-func (m *Manager) cdpEval(wsURL string, expression string) (json.RawMessage, error) {
+func (m *Manager) cdpEval(wsURL, expression string) (json.RawMessage, error) {
 	conn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
 	if err != nil {
-		return nil, fmt.Errorf("CDP websocket: %w", err)
+		return nil, fmt.Errorf(errCDPWebsocket, err)
 	}
 	defer conn.Close()
 	conn.SetReadDeadline(time.Now().Add(10 * time.Second))
@@ -587,6 +584,19 @@ func ParseNetscapeCookies(text string) []CDPCookie {
 	return cookies
 }
 
+// waitForCDPResponse reads CDP messages until the response with the given ID arrives.
+func waitForCDPResponse(conn *websocket.Conn, id int) error {
+	for {
+		var resp cdpMessage
+		if err := conn.ReadJSON(&resp); err != nil {
+			return err
+		}
+		if resp.ID == id {
+			return nil
+		}
+	}
+}
+
 // SetCookiesViaCDP injects cookies into the browser via CDP Network.setCookie.
 func (m *Manager) SetCookiesViaCDP(cookies []CDPCookie) error {
 	wsURL, err := m.findAnyPageTarget()
@@ -596,7 +606,7 @@ func (m *Manager) SetCookiesViaCDP(cookies []CDPCookie) error {
 
 	conn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
 	if err != nil {
-		return fmt.Errorf("CDP websocket: %w", err)
+		return fmt.Errorf(errCDPWebsocket, err)
 	}
 	defer conn.Close()
 	conn.SetReadDeadline(time.Now().Add(15 * time.Second))
@@ -629,22 +639,15 @@ func (m *Manager) SetCookiesViaCDP(cookies []CDPCookie) error {
 			return fmt.Errorf("setting cookie %s: %w", c.Name, err)
 		}
 
-		// Read response (skip events)
-		for {
-			var resp cdpMessage
-			if err := conn.ReadJSON(&resp); err != nil {
-				return fmt.Errorf("reading setCookie response for %s: %w", c.Name, err)
-			}
-			if resp.ID == i+1 {
-				break
-			}
+		if err := waitForCDPResponse(conn, i+1); err != nil {
+			return fmt.Errorf("reading setCookie response for %s: %w", c.Name, err)
 		}
 	}
 	return nil
 }
 
 // NavigateToURL opens a URL in the first available page target via CDP.
-func (m *Manager) NavigateToURL(url string) error {
+func (m *Manager) NavigateToURL(targetURL string) error {
 	targets, err := m.GetCDPTargets()
 	if err != nil {
 		return err
@@ -663,11 +666,11 @@ func (m *Manager) NavigateToURL(url string) error {
 
 	conn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
 	if err != nil {
-		return fmt.Errorf("CDP websocket: %w", err)
+		return fmt.Errorf(errCDPWebsocket, err)
 	}
 	defer conn.Close()
 
-	params, _ := json.Marshal(map[string]string{"url": url})
+	params, _ := json.Marshal(map[string]string{"url": targetURL})
 	msg := cdpMessage{ID: 1, Method: "Page.navigate", Params: params}
 	if err := conn.WriteJSON(msg); err != nil {
 		return fmt.Errorf("sending navigate: %w", err)
@@ -679,10 +682,10 @@ func (m *Manager) NavigateToURL(url string) error {
 
 // OpenNewTab creates a new tab via CDP and navigates it to the given URL.
 // Returns the new target ID.
-func (m *Manager) OpenNewTab(url string) (string, error) {
+func (m *Manager) OpenNewTab(targetURL string) (string, error) {
 	port := config.GetBrowser().CDPPort
 	// Use the /json/new endpoint to create a new tab
-	resp, err := http.Get(fmt.Sprintf("http://127.0.0.1:%d/json/new?%s", port, url))
+	resp, err := http.Get(fmt.Sprintf("http://127.0.0.1:%d/json/new?%s", port, url.QueryEscape(targetURL)))
 	if err != nil {
 		return "", fmt.Errorf("creating new tab: %w", err)
 	}
@@ -696,7 +699,7 @@ func (m *Manager) OpenNewTab(url string) (string, error) {
 }
 
 // HasCookies checks if specific cookie names exist for the given domains.
-func (m *Manager) HasCookies(domains []string, cookieNames []string) (bool, string, error) {
+func (m *Manager) HasCookies(domains, cookieNames []string) (bool, string, error) {
 	cookies, err := m.GetCookiesForDomains(domains)
 	if err != nil {
 		return false, "", err
@@ -743,7 +746,7 @@ func (m *Manager) ExportCookiesToDisk(domains []string, platform string, dataDir
 	}
 
 	cookiesDir := filepath.Join(dataDir, "cookies")
-	os.MkdirAll(cookiesDir, 0755)
+	os.MkdirAll(cookiesDir, 0700)
 
 	data, err := json.MarshalIndent(cookies, "", "  ")
 	if err != nil {
@@ -751,11 +754,11 @@ func (m *Manager) ExportCookiesToDisk(domains []string, platform string, dataDir
 	}
 
 	filePath := filepath.Join(cookiesDir, platform+".json")
-	return os.WriteFile(filePath, data, 0644)
+	return os.WriteFile(filePath, data, 0600)
 }
 
 // LoadCookiesFromDisk reads previously exported cookies for a platform.
-func LoadCookiesFromDisk(platform string, dataDir string) ([]CDPCookie, error) {
+func LoadCookiesFromDisk(platform, dataDir string) ([]CDPCookie, error) {
 	filePath := filepath.Join(dataDir, "cookies", platform+".json")
 	data, err := os.ReadFile(filePath)
 	if err != nil {

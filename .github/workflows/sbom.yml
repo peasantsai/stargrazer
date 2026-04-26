@@ -1,0 +1,139 @@
+name: SBOM & Vulnerability Scan
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: '0 6 * * 1' # Weekly Monday 06:00 UTC
+
+permissions:
+  contents: write
+  security-events: write
+
+jobs:
+  sbom-and-scan:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.26'
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+
+      - name: Install frontend dependencies
+        working-directory: ./frontend
+        run: npm ci --ignore-scripts
+
+      # --- Syft: generate SBOMs ---
+
+      - name: Install Syft
+        uses: anchore/sbom-action/download-syft@fc46e51fd3cb168ffb36c6d1915723c47db58abb # v0.17.7
+
+      - name: Generate Go SBOM (CycloneDX)
+        run: syft dir:. -o cyclonedx-json=sbom-go.cdx.json --select-catalogers go
+
+      - name: Generate Frontend SBOM (CycloneDX)
+        run: syft dir:frontend -o cyclonedx-json=sbom-frontend.cdx.json --select-catalogers javascript
+
+      - name: Generate combined SBOM (SPDX)
+        run: syft dir:. -o spdx-json=sbom-combined.spdx.json
+
+      # --- Grype: vulnerability scan ---
+
+      - name: Install Grype
+        uses: anchore/scan-action/download-grype@2c901ab7378897c01b8efaa2d0c9bf519cc64b9e # v5.4.1
+
+      - name: Scan Go SBOM for vulnerabilities
+        run: |
+          grype sbom:sbom-go.cdx.json \
+            --output table \
+            --output sarif=grype-go.sarif \
+            --fail-on critical
+        continue-on-error: true
+        id: grype_go
+
+      - name: Scan Frontend SBOM for vulnerabilities
+        run: |
+          grype sbom:sbom-frontend.cdx.json \
+            --output table \
+            --output sarif=grype-frontend.sarif \
+            --fail-on critical
+        continue-on-error: true
+        id: grype_frontend
+
+      # --- Upload results ---
+
+      - name: Upload Go SARIF to GitHub Security
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: grype-go.sarif
+          category: grype-go
+        continue-on-error: true
+
+      - name: Upload Frontend SARIF to GitHub Security
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: grype-frontend.sarif
+          category: grype-frontend
+        continue-on-error: true
+
+      - name: Upload SBOMs as artifacts
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: sbom-reports
+          path: |
+            sbom-go.cdx.json
+            sbom-frontend.cdx.json
+            sbom-combined.spdx.json
+          retention-days: 90
+
+      - name: Upload Grype reports as artifacts
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: grype-reports
+          path: |
+            grype-go.sarif
+            grype-frontend.sarif
+          retention-days: 90
+
+      # --- Attach SBOM to releases ---
+
+      - name: Attach SBOMs to latest release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          LATEST_TAG=$(gh release list --limit 1 --json tagName -q '.[0].tagName' 2>/dev/null || echo "")
+          if [[ -n "$LATEST_TAG" ]]; then
+            gh release upload "$LATEST_TAG" \
+              sbom-go.cdx.json \
+              sbom-frontend.cdx.json \
+              sbom-combined.spdx.json \
+              --clobber || true
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # --- Fail the job if critical vulns found ---
+
+      - name: Check for critical vulnerabilities
+        if: always()
+        run: |
+          EXIT=0
+          if [[ "${{ steps.grype_go.outcome }}" == "failure" ]]; then
+            echo "::error::Critical vulnerabilities found in Go dependencies"
+            EXIT=1
+          fi
+          if [[ "${{ steps.grype_frontend.outcome }}" == "failure" ]]; then
+            echo "::error::Critical vulnerabilities found in Frontend dependencies"
+            EXIT=1
+          fi
+          exit $EXIT

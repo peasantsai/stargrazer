@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   StartBrowser, StopBrowser, GetBrowserStatus, GetBrowserConfig,
   UpdateBrowserConfig, ResetBrowserConfig, RestartBrowser,
-  GetPlatforms, OpenPlatform, CheckLoginStatus, CheckAllLoginStatus,
+  GetPlatforms, OpenPlatform, CheckAllLoginStatus,
   ImportCookies,
   GetLogs, ExportLogs, ClearLogs, TriggerUpload,
   GetSchedules, CreateSchedule, DeleteSchedule, PauseSchedule, ResumeSchedule,
@@ -94,8 +94,8 @@ interface AccountInfo {
 
 function useTheme(): [Theme, (t: Theme) => void] {
   const [theme, setThemeState] = useState<Theme>(() => (localStorage.getItem('stargrazer-theme') as Theme) || 'dark');
-  const setTheme = (t: Theme) => { setThemeState(t); localStorage.setItem('stargrazer-theme', t); document.documentElement.setAttribute('data-theme', t); };
-  useEffect(() => { document.documentElement.setAttribute('data-theme', theme); }, []);
+  const setTheme = (t: Theme) => { setThemeState(t); localStorage.setItem('stargrazer-theme', t); document.documentElement.dataset.theme = t; };
+  useEffect(() => { document.documentElement.dataset.theme = theme; }, []);
   return [theme, setTheme];
 }
 
@@ -274,7 +274,7 @@ function AccountModal({ account, updateAccount, onClose }: { account: AccountInf
   const handleSave = () => { updateAccount({ name, email, avatarUrl }); onClose(); };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay" onClick={onClose} onKeyDown={e => e.key === 'Escape' && onClose()} role="presentation">
       <div className="modal-content" onClick={e => e.stopPropagation()}>
         <div className="modal-header">
           <h3>Account Settings</h3>
@@ -286,17 +286,17 @@ function AccountModal({ account, updateAccount, onClose }: { account: AccountInf
               {avatarUrl ? <img src={avatarUrl} alt="" /> : initials}
             </div>
             <div className="config-field" style={{ flex: 1, marginBottom: 0 }}>
-              <label>Avatar URL</label>
-              <input type="text" value={avatarUrl} onChange={e => setAvatarUrl(e.target.value)} placeholder="https://example.com/avatar.png" />
+              <label htmlFor="account-avatar-url">Avatar URL</label>
+              <input id="account-avatar-url" type="text" value={avatarUrl} onChange={e => setAvatarUrl(e.target.value)} placeholder="https://example.com/avatar.png" />
             </div>
           </div>
           <div className="config-field" style={{ marginBottom: 0 }}>
-            <label>Display Name</label>
-            <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Your name" />
+            <label htmlFor="account-display-name">Display Name</label>
+            <input id="account-display-name" type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Your name" />
           </div>
           <div className="config-field" style={{ marginBottom: 0 }}>
-            <label>Email</label>
-            <input type="text" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@example.com" />
+            <label htmlFor="account-email">Email</label>
+            <input id="account-email" type="text" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@example.com" />
           </div>
         </div>
         <div className="modal-footer">
@@ -410,15 +410,15 @@ function ChatPanel({ messages, browserStatus, loading, onStart, onStop, messages
           <h2><span className={`status-dot ${browserStatus}`} />Browser: {browserStatus}</h2>
         </div>
         <div className="browser-actions">
-          {!isRunning ? (
-            <button className="btn-primary" onClick={onStart} disabled={loading}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-              {loading ? 'Starting...' : 'Start Browser'}
-            </button>
-          ) : (
+          {isRunning ? (
             <button className="btn-danger" onClick={onStop} disabled={loading}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
               Stop Browser
+            </button>
+          ) : (
+            <button className="btn-primary" onClick={onStart} disabled={loading}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+              {loading ? 'Starting...' : 'Start Browser'}
             </button>
           )}
         </div>
@@ -444,7 +444,7 @@ function ChatPanel({ messages, browserStatus, loading, onStart, onStop, messages
             const icon = PLATFORM_ICONS[p.id];
             const colors = PLATFORM_COLORS[p.id];
             return (
-              <label key={p.id} className={`upload-platform-chip ${selectedPlatforms.has(p.id) ? 'selected' : ''} ${!p.loggedIn ? 'disabled' : ''}`}
+              <label key={p.id} className={`upload-platform-chip ${selectedPlatforms.has(p.id) ? 'selected' : ''} ${p.loggedIn ? '' : 'disabled'}`}
                 style={{ '--chip-bg': colors?.bg } as React.CSSProperties}>
                 <input type="checkbox" checked={selectedPlatforms.has(p.id)} onChange={() => p.loggedIn && togglePlatform(p.id)} disabled={!p.loggedIn} />
                 <span className="upload-platform-icon">{icon}</span>
@@ -579,6 +579,8 @@ function SocialMediaSection({ onBrowserStatusChange, addMessage, refreshPlatform
           return (
             <div key={p.id} className={`social-card ${p.loggedIn ? 'logged-in' : ''}`}
               onClick={() => !loadingPlatform && (p.loggedIn ? handleOpenInBrowser(p.id) : handleConnect(p.id))}
+              onKeyDown={e => e.key === 'Enter' && !loadingPlatform && (p.loggedIn ? handleOpenInBrowser(p.id) : handleConnect(p.id))}
+              role="button" tabIndex={0}
               style={{ '--platform-bg': colors.bg, '--platform-hover': colors.hover, '--platform-text': colors.text } as React.CSSProperties}>
               <div className="social-card-icon">{PLATFORM_ICONS[p.id]}</div>
               <div className="social-card-info">
@@ -607,7 +609,7 @@ function SocialMediaSection({ onBrowserStatusChange, addMessage, refreshPlatform
 
       {/* Info Modal */}
       {infoModal && (
-        <div className="modal-overlay" onClick={() => setInfoModal(null)}>
+        <div className="modal-overlay" onClick={() => setInfoModal(null)} onKeyDown={e => e.key === 'Escape' && setInfoModal(null)} role="presentation">
           <div className="modal-content" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
               <div className="modal-title-row">
@@ -652,7 +654,7 @@ function CookiePasteModal({ platform, onImport, onCancel }: {
   const lineCount = cookieText.split('\n').filter(l => l.trim() && !l.startsWith('#')).length;
 
   return (
-    <div className="modal-overlay" onClick={onCancel}>
+    <div className="modal-overlay" onClick={onCancel} onKeyDown={e => e.key === 'Escape' && onCancel()} role="presentation">
       <div className="modal-content cookie-modal" onClick={e => e.stopPropagation()}>
         <div className="modal-header">
           <div className="modal-title-row">
@@ -682,7 +684,7 @@ function CookiePasteModal({ platform, onImport, onCancel }: {
           />
           {cookieText && (
             <div className="cookie-count">
-              {lineCount} cookie{lineCount !== 1 ? 's' : ''} detected
+              {lineCount} cookie{lineCount === 1 ? '' : 's'} detected
             </div>
           )}
         </div>
@@ -719,7 +721,7 @@ function LogsModal({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay" onClick={onClose} onKeyDown={e => e.key === 'Escape' && onClose()} role="presentation">
       <div className="modal-content logs-modal" onClick={e => e.stopPropagation()}>
         <div className="modal-header">
           <h3>Application Logs</h3>
@@ -734,7 +736,7 @@ function LogsModal({ onClose }: { onClose: () => void }) {
         </div>
         <div className="logs-body">
           {filtered.map((l, i) => (
-            <div key={i} className={`log-entry log-${l.level}`}>
+            <div key={`${l.timestamp}-${l.source}-${i}`} className={`log-entry log-${l.level}`}>
               <span className="log-time">{new Date(l.timestamp).toLocaleTimeString()}</span>
               <span className={`log-level log-level-${l.level}`}>{l.level.toUpperCase()}</span>
               <span className="log-source">[{l.source}]</span>
@@ -746,6 +748,18 @@ function LogsModal({ onClose }: { onClose: () => void }) {
       </div>
     </div>
   );
+}
+
+function statusDotClass(status: string): string {
+  if (status === 'active') return 'running';
+  if (status === 'paused') return 'stopped';
+  return 'error';
+}
+
+function statusTextClass(status: string): string {
+  if (status === 'active') return 'text-success';
+  if (status === 'paused') return 'text-muted';
+  return 'text-error';
 }
 
 /* --- Schedules Panel --- */
@@ -795,8 +809,8 @@ function SchedulesPanel({ sidebarOpen, onToggleSidebar, addMessage, platforms }:
       ) : (
         <div className="schedule-list">
           {schedules.map(j => (
-            <div key={j.id} className="schedule-card" onClick={() => setSelectedJob(j)}>
-              <span className={`status-dot ${j.status === 'active' ? 'running' : j.status === 'paused' ? 'stopped' : 'error'}`} />
+            <div key={j.id} className="schedule-card" onClick={() => setSelectedJob(j)} onKeyDown={e => e.key === 'Enter' && setSelectedJob(j)} role="button" tabIndex={0}>
+              <span className={`status-dot ${statusDotClass(j.status)}`} />
               <div className="schedule-card-info">
                 <span className="schedule-card-name">
                   {j.name}
@@ -835,14 +849,14 @@ function CreateScheduleModal({ platforms, onCreated, onCancel }: {
   const [name, setName] = useState('');
   const [type, setType] = useState<'session_keepalive' | 'upload'>('upload');
   const [cronExpr, setCronExpr] = useState('0 */12 * * *');
-  const [interval, setInterval_] = useState('12h');
+  const [interval, setScheduleInterval] = useState('12h');
   const [selectedPlatforms, setSelectedPlatforms] = useState<Set<string>>(new Set());
   const [caption, setCaption] = useState('');
   const [hashtags, setHashtags] = useState('');
   const [saving, setSaving] = useState(false);
 
   const intervalMap: Record<string, string> = { '6h': '0 */6 * * *', '12h': '0 */12 * * *', '24h': '0 0 * * *', '3d': '0 0 */3 * *', 'custom': '' };
-  const handleIntervalChange = (v: string) => { setInterval_(v); if (v !== 'custom') setCronExpr(intervalMap[v]); };
+  const handleIntervalChange = (v: string) => { setScheduleInterval(v); if (v !== 'custom') setCronExpr(intervalMap[v]); };
 
   const togglePlatform = (id: string) => setSelectedPlatforms(prev => { const n = new Set(prev); n.has(id)?n.delete(id):n.add(id); return n; });
 
@@ -859,7 +873,7 @@ function CreateScheduleModal({ platforms, onCreated, onCancel }: {
   };
 
   return (
-    <div className="modal-overlay" onClick={onCancel}>
+    <div className="modal-overlay" onClick={onCancel} onKeyDown={e => e.key === 'Escape' && onCancel()} role="presentation">
       <div className="modal-content" style={{ width: 500 }} onClick={e => e.stopPropagation()}>
         <div className="modal-header">
           <h3>Create Schedule</h3>
@@ -867,18 +881,18 @@ function CreateScheduleModal({ platforms, onCreated, onCancel }: {
         </div>
         <div className="modal-body">
           <div className="config-field" style={{marginBottom:12}}>
-            <label>Job Name</label>
-            <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="My upload schedule" />
+            <label htmlFor="sched-job-name">Job Name</label>
+            <input id="sched-job-name" type="text" value={name} onChange={e => setName(e.target.value)} placeholder="My upload schedule" />
           </div>
           <div className="config-field" style={{marginBottom:12}}>
-            <label>Type</label>
+            <span className="config-field-label">Type</span>
             <div className="theme-switcher" style={{width:'100%'}}>
               <button className={type==='session_keepalive'?'active':''} onClick={()=>setType('session_keepalive')} style={{flex:1,justifyContent:'center'}}>Keep Alive</button>
               <button className={type==='upload'?'active':''} onClick={()=>setType('upload')} style={{flex:1,justifyContent:'center'}}>Upload</button>
             </div>
           </div>
           <div className="config-field" style={{marginBottom:12}}>
-            <label>Interval</label>
+            <span className="config-field-label">Interval</span>
             <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
               {['6h','12h','24h','3d','custom'].map(v => (
                 <button key={v} className={`btn-secondary ${interval===v?'active':''}`} style={{padding:'6px 12px',fontSize:12,...(interval===v?{background:'var(--accent)',color:'#fff',borderColor:'var(--accent)'}:{})}} onClick={()=>handleIntervalChange(v)}>
@@ -886,10 +900,10 @@ function CreateScheduleModal({ platforms, onCreated, onCancel }: {
                 </button>
               ))}
             </div>
-            {interval === 'custom' && <input type="text" value={cronExpr} onChange={e=>setCronExpr(e.target.value)} placeholder="0 */12 * * *" style={{marginTop:6}} />}
+            {interval === 'custom' && <input type="text" value={cronExpr} onChange={e=>setCronExpr(e.target.value)} placeholder="0 */12 * * *" style={{marginTop:6}} aria-label="Custom cron expression" />}
           </div>
           <div className="config-field" style={{marginBottom:12}}>
-            <label>Platforms</label>
+            <span className="config-field-label">Platforms</span>
             <div className="upload-platforms">
               {platforms.map(p => (
                 <label key={p.id} className={`upload-platform-chip ${selectedPlatforms.has(p.id)?'selected':''}`}>
@@ -902,12 +916,12 @@ function CreateScheduleModal({ platforms, onCreated, onCancel }: {
           </div>
           {type === 'upload' && <>
             <div className="config-field" style={{marginBottom:12}}>
-              <label>Caption</label>
-              <textarea className="upload-caption" value={caption} onChange={e=>setCaption(e.target.value)} placeholder="Post caption..." rows={2} />
+              <label htmlFor="sched-caption">Caption</label>
+              <textarea id="sched-caption" className="upload-caption" value={caption} onChange={e=>setCaption(e.target.value)} placeholder="Post caption..." rows={2} />
             </div>
             <div className="config-field" style={{marginBottom:0}}>
-              <label>Hashtags</label>
-              <input type="text" value={hashtags} onChange={e=>setHashtags(e.target.value)} placeholder="#hashtag1 #hashtag2" />
+              <label htmlFor="sched-hashtags">Hashtags</label>
+              <input id="sched-hashtags" type="text" value={hashtags} onChange={e=>setHashtags(e.target.value)} placeholder="#hashtag1 #hashtag2" />
             </div>
           </>}
         </div>
@@ -928,14 +942,14 @@ function ScheduleDetailModal({ job, onClose, onDelete, onPauseResume }: {
   onPauseResume: (j: main.ScheduleResponse) => void;
 }) {
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay" onClick={onClose} onKeyDown={e => e.key === 'Escape' && onClose()} role="presentation">
       <div className="modal-content" onClick={e => e.stopPropagation()}>
         <div className="modal-header">
           <h3>{job.name}</h3>
           <button className="modal-close" onClick={onClose}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
         </div>
         <div className="modal-body">
-          <div className="modal-field"><span className="modal-label">Status</span><span className={`modal-value ${job.status==='active'?'text-success':job.status==='paused'?'text-muted':'text-error'}`}><span className={`status-dot ${job.status==='active'?'running':job.status==='paused'?'stopped':'error'}`}/>{job.status}</span></div>
+          <div className="modal-field"><span className="modal-label">Status</span><span className={`modal-value ${statusTextClass(job.status)}`}><span className={`status-dot ${statusDotClass(job.status)}`}/>{job.status}</span></div>
           <div className="modal-field"><span className="modal-label">Type</span><span className="modal-value">{job.type === 'session_keepalive' ? 'Session Keep-Alive' : 'Content Upload'}{job.auto && ' (auto-created)'}</span></div>
           <div className="modal-field"><span className="modal-label">Platforms</span><span className="modal-value">{job.platforms.join(', ')}</span></div>
           <div className="modal-field"><span className="modal-label">Schedule</span><span className="modal-value modal-path">{job.cronExpr}</span></div>
@@ -1036,14 +1050,14 @@ function ConfigPanel({ onSaved, sidebarOpen, onToggleSidebar, onBrowserStatusCha
       {showSocial && <SocialMediaSection onBrowserStatusChange={onBrowserStatusChange} addMessage={addMessage} refreshPlatforms={refreshPlatforms} />}
 
       {showConnection && <div className="config-section"><h3>Connection</h3>
-        <div className="config-field"><label>CDP Port</label><input type="number" value={config.cdpPort} onChange={e=>updateField('cdpPort',parseInt(e.target.value)||9222)}/></div>
-        <div className="config-field"><label>Chromium Path</label><input type="text" value={config.chromiumPath} onChange={e=>updateField('chromiumPath',e.target.value)} placeholder="Auto-detect"/><span className="config-hint">Auto-detected from bundled assets.</span></div>
-        <div className="config-field"><label>User Data Directory</label><input type="text" value={config.userDataDir} onChange={e=>updateField('userDataDir',e.target.value)} placeholder="Default"/></div>
+        <div className="config-field"><label htmlFor="cfg-cdp-port">CDP Port</label><input id="cfg-cdp-port" type="number" value={config.cdpPort} onChange={e=>updateField('cdpPort',Number.parseInt(e.target.value)||9222)}/></div>
+        <div className="config-field"><label htmlFor="cfg-chromium-path">Chromium Path</label><input id="cfg-chromium-path" type="text" value={config.chromiumPath} onChange={e=>updateField('chromiumPath',e.target.value)} placeholder="Auto-detect"/><span className="config-hint">Auto-detected from bundled assets.</span></div>
+        <div className="config-field"><label htmlFor="cfg-user-data-dir">User Data Directory</label><input id="cfg-user-data-dir" type="text" value={config.userDataDir} onChange={e=>updateField('userDataDir',e.target.value)} placeholder="Default"/></div>
       </div>}
 
       {showDisplay && <div className="config-section"><h3>Display</h3>
-        <div className="config-field"><label>Headless Mode</label><div className="config-field-row"><button className={`toggle ${config.headless?'active':''}`} onClick={()=>updateField('headless',!config.headless)}/><span>{config.headless?'Enabled':'Disabled'}</span></div></div>
-        <div className="config-field-inline"><div className="config-field"><label>Width</label><input type="number" value={config.windowWidth} onChange={e=>updateField('windowWidth',parseInt(e.target.value)||1280)}/></div><div className="config-field"><label>Height</label><input type="number" value={config.windowHeight} onChange={e=>updateField('windowHeight',parseInt(e.target.value)||900)}/></div></div>
+        <div className="config-field"><span className="config-field-label">Headless Mode</span><div className="config-field-row"><button className={`toggle ${config.headless?'active':''}`} onClick={()=>updateField('headless',!config.headless)}/><span>{config.headless?'Enabled':'Disabled'}</span></div></div>
+        <div className="config-field-inline"><div className="config-field"><label htmlFor="cfg-window-width">Width</label><input id="cfg-window-width" type="number" value={config.windowWidth} onChange={e=>updateField('windowWidth',Number.parseInt(e.target.value)||1280)}/></div><div className="config-field"><label htmlFor="cfg-window-height">Height</label><input id="cfg-window-height" type="number" value={config.windowHeight} onChange={e=>updateField('windowHeight',Number.parseInt(e.target.value)||900)}/></div></div>
       </div>}
 
       {showFlags && <div className="config-section"><h3>Chromium Flags {activeCount>0&&<span className="flag-badge">{activeCount} active</span>}</h3>
@@ -1063,7 +1077,7 @@ function ConfigPanel({ onSaved, sidebarOpen, onToggleSidebar, onBrowserStatusCha
       </div>}
 
       {showCustomFlags && <div className="config-section"><h3>Custom Flags</h3>
-        <div className="config-field"><label>Additional flags (comma-separated)</label><input type="text"
+        <div className="config-field"><label htmlFor="cfg-custom-flags">Additional flags (comma-separated)</label><input id="cfg-custom-flags" type="text"
           value={activeFlags.filter(f=>!CHROMIUM_FLAGS.some(g=>g.flags.some(gf=>gf.flag===f))).join(', ')}
           onChange={e=>{const known=activeFlags.filter(f=>CHROMIUM_FLAGS.some(g=>g.flags.some(gf=>gf.flag===f)));updateField('extraFlags',[...known,...e.target.value.split(',').map(s=>s.trim()).filter(Boolean)]);}}
           placeholder="--proxy-server=host:port"/></div>

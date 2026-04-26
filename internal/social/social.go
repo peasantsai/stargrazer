@@ -241,14 +241,14 @@ func (s *SessionStore) save() {
 	if err != nil {
 		return
 	}
-	os.MkdirAll(filepath.Dir(s.filePath), 0755)
-	os.WriteFile(s.filePath, data, 0644)
+	os.MkdirAll(filepath.Dir(s.filePath), 0700)
+	os.WriteFile(s.filePath, data, 0600)
 }
 
 // EnsureSessionDir creates the shared session directory if it doesn't exist.
 func EnsureSessionDir(id Platform) (string, error) {
 	dir := SharedSessionDir()
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0700); err != nil {
 		return "", fmt.Errorf("creating session dir: %w", err)
 	}
 	return dir, nil

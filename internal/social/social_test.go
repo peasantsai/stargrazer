@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestAllPlatformsReturns6(t *testing.T) {
@@ -287,5 +288,207 @@ func TestSessionStorePersistence(t *testing.T) {
 	}
 	if status.Username != "yt_user" {
 		t.Errorf("expected username 'yt_user', got %q", status.Username)
+	}
+}
+
+// --- UpdateCheckTime tests ---
+
+func TestUpdateCheckTime(t *testing.T) {
+	tmpDir := t.TempDir()
+	fp := filepath.Join(tmpDir, "accounts.json")
+	s := &SessionStore{accounts: make(map[Platform]*AccountStatus), filePath: fp}
+
+	s.SetLoggedIn(Instagram, "user")
+	before := s.Get(Instagram).LastCheck
+
+	time.Sleep(10 * time.Millisecond)
+	s.UpdateCheckTime(Instagram)
+
+	after := s.Get(Instagram).LastCheck
+	if !after.After(before) {
+		t.Errorf("expected LastCheck to be updated; before=%v, after=%v", before, after)
+	}
+}
+
+func TestUpdateCheckTimeNoOp(t *testing.T) {
+	tmpDir := t.TempDir()
+	fp := filepath.Join(tmpDir, "accounts.json")
+	s := &SessionStore{accounts: make(map[Platform]*AccountStatus), filePath: fp}
+
+	// UpdateCheckTime on non-existent platform should be no-op (no crash)
+	s.UpdateCheckTime(TikTok)
+
+	status := s.Get(TikTok)
+	if status.LoggedIn {
+		t.Error("expected platform to remain not logged in")
+	}
+}
+
+func TestUpdateCheckTimePersists(t *testing.T) {
+	tmpDir := t.TempDir()
+	fp := filepath.Join(tmpDir, "accounts.json")
+	s := &SessionStore{accounts: make(map[Platform]*AccountStatus), filePath: fp}
+
+	s.SetLoggedIn(Facebook, "fb_user")
+	time.Sleep(10 * time.Millisecond)
+	s.UpdateCheckTime(Facebook)
+
+	// Reload and verify
+	s2 := &SessionStore{accounts: make(map[Platform]*AccountStatus), filePath: fp}
+	s2.load()
+
+	status := s2.Get(Facebook)
+	if !status.LoggedIn {
+		t.Error("expected Facebook to still be logged in after reload")
+	}
+	if status.LastCheck.IsZero() {
+		t.Error("expected non-zero LastCheck after reload")
+	}
+}
+
+// --- load edge cases ---
+
+func TestLoadWithInvalidJSON(t *testing.T) {
+	tmpDir := t.TempDir()
+	fp := filepath.Join(tmpDir, "accounts.json")
+	os.WriteFile(fp, []byte("not valid json {["), 0600)
+
+	s := &SessionStore{accounts: make(map[Platform]*AccountStatus), filePath: fp}
+	s.load()
+	// Should not crash, accounts should remain empty
+	if len(s.accounts) != 0 {
+		t.Errorf("expected 0 accounts after invalid JSON load, got %d", len(s.accounts))
+	}
+}
+
+func TestLoadWithMissingFile(t *testing.T) {
+	s := &SessionStore{
+		accounts: make(map[Platform]*AccountStatus),
+		filePath: "/nonexistent/path/accounts.json",
+	}
+	s.load()
+	// Should not crash
+	if len(s.accounts) != 0 {
+		t.Errorf("expected 0 accounts for missing file, got %d", len(s.accounts))
+	}
+}
+
+func TestLoadWithEmptyArray(t *testing.T) {
+	tmpDir := t.TempDir()
+	fp := filepath.Join(tmpDir, "accounts.json")
+	os.WriteFile(fp, []byte("[]"), 0600)
+
+	s := &SessionStore{accounts: make(map[Platform]*AccountStatus), filePath: fp}
+	s.load()
+	if len(s.accounts) != 0 {
+		t.Errorf("expected 0 accounts for empty array, got %d", len(s.accounts))
+	}
+}
+
+// --- Platform constants ---
+
+func TestPlatformConstants(t *testing.T) {
+	tests := []struct {
+		platform Platform
+		expected string
+	}{
+		{Facebook, "facebook"},
+		{Instagram, "instagram"},
+		{TikTok, "tiktok"},
+		{YouTube, "youtube"},
+		{LinkedIn, "linkedin"},
+		{X, "x"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.expected, func(t *testing.T) {
+			if string(tc.platform) != tc.expected {
+				t.Errorf("expected %q, got %q", tc.expected, string(tc.platform))
+			}
+		})
+	}
+}
+
+// --- sessionsBaseDir / sessionFilePath ---
+
+func TestSessionsBaseDirReturnsNonEmpty(t *testing.T) {
+	dir := sessionsBaseDir()
+	if dir == "" {
+		t.Error("sessionsBaseDir() returned empty string")
+	}
+	if !strings.Contains(dir, "stargrazer") {
+		t.Errorf("expected 'stargrazer' in base dir, got %q", dir)
+	}
+	if !strings.HasSuffix(dir, "sessions") {
+		t.Errorf("expected base dir to end with 'sessions', got %q", dir)
+	}
+}
+
+func TestSessionFilePathReturnsNonEmpty(t *testing.T) {
+	fp := sessionFilePath()
+	if fp == "" {
+		t.Error("sessionFilePath() returned empty string")
+	}
+	if !strings.HasSuffix(fp, "accounts.json") {
+		t.Errorf("expected sessionFilePath to end with 'accounts.json', got %q", fp)
+	}
+}
+
+// --- NewSessionStore ---
+
+func TestNewSessionStoreLoadsExistingFile(t *testing.T) {
+	// Set env so sessionFilePath resolves under our temp dir
+	tmpDir := t.TempDir()
+	sessionsDir := filepath.Join(tmpDir, "stargrazer", "sessions")
+	os.MkdirAll(sessionsDir, 0700)
+
+	// Write a pre-existing accounts file
+	data := `[{"platformId":"instagram","loggedIn":true,"username":"pre_user","lastLogin":"2025-01-01T00:00:00Z","lastCheck":"2025-01-01T00:00:00Z"}]`
+	os.WriteFile(filepath.Join(sessionsDir, "accounts.json"), []byte(data), 0600)
+
+	t.Setenv("APPDATA", tmpDir)
+	t.Setenv("HOME", tmpDir)
+
+	store := NewSessionStore()
+	status := store.Get(Instagram)
+	if !status.LoggedIn {
+		t.Error("expected Instagram to be logged in from pre-existing file")
+	}
+	if status.Username != "pre_user" {
+		t.Errorf("expected username 'pre_user', got %q", status.Username)
+	}
+}
+
+// --- Multiple SetLoggedIn overwrite ---
+
+func TestSetLoggedInOverwrite(t *testing.T) {
+	tmpDir := t.TempDir()
+	fp := filepath.Join(tmpDir, "accounts.json")
+	s := &SessionStore{accounts: make(map[Platform]*AccountStatus), filePath: fp}
+
+	s.SetLoggedIn(Instagram, "user1")
+	s.SetLoggedIn(Instagram, "user2")
+
+	status := s.Get(Instagram)
+	if status.Username != "user2" {
+		t.Errorf("expected username 'user2' after overwrite, got %q", status.Username)
+	}
+}
+
+// --- SetLoggedOut on non-existent platform ---
+
+func TestSetLoggedOutNonExistent(t *testing.T) {
+	tmpDir := t.TempDir()
+	fp := filepath.Join(tmpDir, "accounts.json")
+	s := &SessionStore{accounts: make(map[Platform]*AccountStatus), filePath: fp}
+
+	// Should not crash
+	s.SetLoggedOut(LinkedIn)
+	status := s.Get(LinkedIn)
+	if status.LoggedIn {
+		t.Error("expected LoggedIn false")
+	}
+	if status.LastCheck.IsZero() {
+		t.Error("expected non-zero LastCheck after SetLoggedOut")
 	}
 }

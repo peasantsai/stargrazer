@@ -277,3 +277,220 @@ func TestDefaultWorkflowsUseValidStepTypes(t *testing.T) {
 		})
 	}
 }
+
+// --- PrepareSteps edge cases ---
+
+func TestPrepareStepsEmptyInput(t *testing.T) {
+	steps := []Step{}
+	req := UploadRequest{}
+	prepared := PrepareSteps(steps, req)
+	if len(prepared) != 0 {
+		t.Errorf("expected 0 steps, got %d", len(prepared))
+	}
+}
+
+func TestPrepareStepsNoHashtags(t *testing.T) {
+	steps := []Step{{Type: StepType_, Value: "{{caption}}"}}
+	req := UploadRequest{Caption: "Just a caption", Hashtags: []string{}}
+	prepared := PrepareSteps(steps, req)
+	// With no hashtags, caption should be just "Just a caption" without newlines
+	if prepared[0].Value != "Just a caption" {
+		t.Errorf("expected 'Just a caption', got %q", prepared[0].Value)
+	}
+}
+
+func TestPrepareStepsNilHashtags(t *testing.T) {
+	steps := []Step{{Type: StepType_, Value: "{{caption}}"}}
+	req := UploadRequest{Caption: "No tags", Hashtags: nil}
+	prepared := PrepareSteps(steps, req)
+	if prepared[0].Value != "No tags" {
+		t.Errorf("expected 'No tags', got %q", prepared[0].Value)
+	}
+}
+
+func TestPrepareStepsAllPlaceholders(t *testing.T) {
+	steps := []Step{
+		{Type: StepType_, Value: "Caption: {{caption}} File: {{file}} Tags: {{hashtags}}"},
+	}
+	req := UploadRequest{
+		FilePath: "/video.mp4",
+		Caption:  "hello",
+		Hashtags: []string{"#a", "#b"},
+	}
+	prepared := PrepareSteps(steps, req)
+	expected := "Caption: hello\n\n#a #b File: /video.mp4 Tags: #a #b"
+	if prepared[0].Value != expected {
+		t.Errorf("expected %q, got %q", expected, prepared[0].Value)
+	}
+}
+
+func TestPrepareStepsPreservesOtherFields(t *testing.T) {
+	steps := []Step{
+		{Type: StepClick, Description: "Click button", Selector: "#btn", Value: "no-template", Timeout: 3000, Optional: true},
+	}
+	req := UploadRequest{Caption: "test"}
+	prepared := PrepareSteps(steps, req)
+
+	if prepared[0].Type != StepClick {
+		t.Error("Type should be preserved")
+	}
+	if prepared[0].Description != "Click button" {
+		t.Error("Description should be preserved")
+	}
+	if prepared[0].Selector != "#btn" {
+		t.Error("Selector should be preserved")
+	}
+	if prepared[0].Value != "no-template" {
+		t.Errorf("Value should be unchanged, got %q", prepared[0].Value)
+	}
+	if prepared[0].Timeout != 3000 {
+		t.Error("Timeout should be preserved")
+	}
+	if !prepared[0].Optional {
+		t.Error("Optional should be preserved")
+	}
+}
+
+// --- LoadWorkflow / SaveWorkflow edge cases ---
+
+func TestLoadWorkflowInvalidJSON(t *testing.T) {
+	tmpDir := t.TempDir()
+	wfDir := filepath.Join(tmpDir, "workflows")
+	os.MkdirAll(wfDir, 0755)
+	os.WriteFile(filepath.Join(wfDir, "bad_upload.json"), []byte("not json {["), 0644)
+
+	origDir, _ := os.Getwd()
+	os.Chdir(tmpDir)
+	defer os.Chdir(origDir)
+
+	_, err := LoadWorkflow("bad")
+	if err == nil {
+		t.Error("expected error for invalid JSON workflow")
+	}
+}
+
+func TestSaveWorkflowCreatesDirectory(t *testing.T) {
+	tmpDir := t.TempDir()
+	origDir, _ := os.Getwd()
+	os.Chdir(tmpDir)
+	defer os.Chdir(origDir)
+
+	w := &Workflow{
+		ID:          "dir_test",
+		Platform:    "dirtest",
+		Name:        "Dir Test",
+		Description: "Test directory creation",
+		Steps:       []Step{{Type: StepNavigate, Value: "https://example.com"}},
+	}
+
+	err := SaveWorkflow(w)
+	if err != nil {
+		t.Fatalf("SaveWorkflow error: %v", err)
+	}
+
+	// Verify the directory was created
+	wfDir := filepath.Join(tmpDir, "workflows")
+	if _, err := os.Stat(wfDir); err != nil {
+		t.Fatalf("workflows directory not created: %v", err)
+	}
+
+	// Verify the file exists
+	fp := filepath.Join(wfDir, "dirtest_upload.json")
+	if _, err := os.Stat(fp); err != nil {
+		t.Fatalf("workflow file not created: %v", err)
+	}
+}
+
+func TestSaveAndLoadRoundTrip(t *testing.T) {
+	tmpDir := t.TempDir()
+	origDir, _ := os.Getwd()
+	os.Chdir(tmpDir)
+	defer os.Chdir(origDir)
+
+	w := &Workflow{
+		ID:          "roundtrip_test",
+		Platform:    "roundtrip",
+		Name:        "Round Trip",
+		Description: "Test save and load",
+		Steps: []Step{
+			{Type: StepNavigate, Description: "Go", Value: "https://example.com"},
+			{Type: StepClick, Description: "Click", Selector: "#btn"},
+			{Type: StepWait, Description: "Wait", Timeout: 5000},
+		},
+	}
+
+	if err := SaveWorkflow(w); err != nil {
+		t.Fatalf("SaveWorkflow error: %v", err)
+	}
+
+	loaded, err := LoadWorkflow("roundtrip")
+	if err != nil {
+		t.Fatalf("LoadWorkflow error: %v", err)
+	}
+
+	if loaded.ID != w.ID {
+		t.Errorf("ID mismatch: %q vs %q", loaded.ID, w.ID)
+	}
+	if loaded.Platform != w.Platform {
+		t.Errorf("Platform mismatch: %q vs %q", loaded.Platform, w.Platform)
+	}
+	if loaded.Name != w.Name {
+		t.Errorf("Name mismatch: %q vs %q", loaded.Name, w.Name)
+	}
+	if len(loaded.Steps) != len(w.Steps) {
+		t.Errorf("Steps count mismatch: %d vs %d", len(loaded.Steps), len(w.Steps))
+	}
+}
+
+func TestSaveWorkflowOverwrite(t *testing.T) {
+	tmpDir := t.TempDir()
+	origDir, _ := os.Getwd()
+	os.Chdir(tmpDir)
+	defer os.Chdir(origDir)
+
+	w1 := &Workflow{ID: "v1", Platform: "overwrite", Name: "Version 1", Steps: []Step{}}
+	w2 := &Workflow{ID: "v2", Platform: "overwrite", Name: "Version 2", Steps: []Step{}}
+
+	SaveWorkflow(w1)
+	SaveWorkflow(w2)
+
+	loaded, err := LoadWorkflow("overwrite")
+	if err != nil {
+		t.Fatalf("LoadWorkflow error: %v", err)
+	}
+	if loaded.ID != "v2" {
+		t.Errorf("expected overwritten ID 'v2', got %q", loaded.ID)
+	}
+}
+
+// --- DefaultWorkflows content checks ---
+
+func TestDefaultWorkflowsAllStartWithNavigate(t *testing.T) {
+	for _, w := range DefaultWorkflows() {
+		t.Run(w.Platform, func(t *testing.T) {
+			if len(w.Steps) == 0 {
+				t.Fatal("no steps")
+			}
+			if w.Steps[0].Type != StepNavigate {
+				t.Errorf("first step should be navigate, got %s", w.Steps[0].Type)
+			}
+		})
+	}
+}
+
+func TestDefaultWorkflowsAllContainFileUpload(t *testing.T) {
+	for _, w := range DefaultWorkflows() {
+		t.Run(w.Platform, func(t *testing.T) {
+			found := false
+			for _, s := range w.Steps {
+				if s.Type == StepUploadFile {
+					found = true
+					break
+				}
+			}
+			if !found {
+				t.Error("expected at least one upload_file step")
+			}
+		})
+	}
+}

@@ -2,6 +2,8 @@ package config
 
 import (
 	"testing"
+
+	"github.com/spf13/viper"
 )
 
 func TestDefaults(t *testing.T) {
@@ -284,5 +286,76 @@ func TestGetScheduler(t *testing.T) {
 	}
 	if sc.DefaultKeepAliveInterval != "0 */12 * * *" {
 		t.Errorf("GetScheduler DefaultKeepAliveInterval: expected '0 */12 * * *', got %q", sc.DefaultKeepAliveInterval)
+	}
+}
+
+// TestSetDefaultsSetsAllKeys verifies setDefaults covers all config keys.
+func TestSetDefaultsSetsAllKeys(t *testing.T) {
+	testV := viper.New()
+	setDefaults(testV)
+
+	if testV.GetString("window.title") != "Stargrazer" {
+		t.Errorf("expected window.title 'Stargrazer', got %q", testV.GetString("window.title"))
+	}
+	if testV.GetInt("browser.cdp_port") != 9222 {
+		t.Errorf("expected browser.cdp_port 9222, got %d", testV.GetInt("browser.cdp_port"))
+	}
+	if testV.GetBool("scheduler.enabled") != true {
+		t.Error("expected scheduler.enabled true")
+	}
+	if testV.GetString("scheduler.default_keepalive_interval") != "0 */12 * * *" {
+		t.Errorf("expected default interval, got %q", testV.GetString("scheduler.default_keepalive_interval"))
+	}
+}
+
+func TestDefaultExtraFlagsContainStealthFlags(t *testing.T) {
+	d := defaults()
+	flags := d.Browser.ExtraFlags
+
+	expected := []string{
+		"--disable-blink-features=AutomationControlled",
+		"--disable-infobars",
+		"--force-dark-mode",
+	}
+	for _, e := range expected {
+		found := false
+		for _, f := range flags {
+			if f == e {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("expected %q in ExtraFlags", e)
+		}
+	}
+}
+
+func TestUpdateMultipleTimes(t *testing.T) {
+	mu.Lock()
+	saved := instance
+	mu.Unlock()
+	defer func() {
+		mu.Lock()
+		instance = saved
+		mu.Unlock()
+	}()
+
+	Reset()
+
+	Update(func(c *AppConfig) {
+		c.Browser.CDPPort = 1111
+	})
+	Update(func(c *AppConfig) {
+		c.Browser.CDPPort = 2222
+	})
+
+	cfg := Get()
+	if cfg.Browser.CDPPort != 2222 {
+		t.Errorf("expected CDPPort 2222, got %d", cfg.Browser.CDPPort)
+	}
+	// Other fields should still be defaults
+	if cfg.Window.Title != "Stargrazer" {
+		t.Errorf("expected default title, got %q", cfg.Window.Title)
 	}
 }

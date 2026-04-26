@@ -1,8 +1,10 @@
 package scheduler
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -423,5 +425,493 @@ func TestCreateWithUploadConfig(t *testing.T) {
 	}
 	if job.UploadConfig.Caption != "My upload" {
 		t.Errorf("expected caption 'My upload', got %q", job.UploadConfig.Caption)
+	}
+}
+
+// --- Start / Stop tests ---
+
+func TestStartAndStop(t *testing.T) {
+	s := newTestScheduler(t)
+
+	s.Start()
+	s.mu.Lock()
+	running := s.running
+	s.mu.Unlock()
+	if !running {
+		t.Error("expected running=true after Start()")
+	}
+
+	s.Stop()
+	s.mu.Lock()
+	running = s.running
+	s.mu.Unlock()
+	if running {
+		t.Error("expected running=false after Stop()")
+	}
+}
+
+func TestStopWithNilCronRunner(t *testing.T) {
+	s := newTestScheduler(t)
+	// Stop without Start — cronRunner is nil
+	s.Stop()
+	if s.running {
+		t.Error("expected running=false after Stop()")
+	}
+}
+
+func TestStartLoadsPersistedJobs(t *testing.T) {
+	tmpDir := t.TempDir()
+	fp := filepath.Join(tmpDir, "schedules.json")
+
+	// Pre-create a persisted job
+	jobs := []*Job{
+		{
+			ID:       "persisted-1",
+			Name:     "Persisted Job",
+			Type:     JobTypeKeepAlive,
+			CronExpr: "0 */12 * * *",
+			Status:   JobStatusActive,
+		},
+	}
+	data, _ := json.MarshalIndent(jobs, "", "  ")
+	os.WriteFile(fp, data, 0600)
+
+	s := &Scheduler{
+		jobs:     make(map[string]*Job),
+		filePath: fp,
+		browser:  browser.GetInstance(),
+	}
+
+	s.Start()
+	defer s.Stop()
+
+	if len(s.jobs) != 1 {
+		t.Fatalf("expected 1 loaded job, got %d", len(s.jobs))
+	}
+
+	j := s.jobs["persisted-1"]
+	if j == nil {
+		t.Fatal("expected persisted job to be loaded")
+	}
+	if j.Name != "Persisted Job" {
+		t.Errorf("expected name 'Persisted Job', got %q", j.Name)
+	}
+}
+
+func TestStartRegistersActiveJobs(t *testing.T) {
+	tmpDir := t.TempDir()
+	fp := filepath.Join(tmpDir, "schedules.json")
+
+	// Pre-create an active and a paused job
+	jobs := []*Job{
+		{ID: "active-1", Name: "Active", Type: JobTypeKeepAlive, CronExpr: "0 */12 * * *", Status: JobStatusActive},
+		{ID: "paused-1", Name: "Paused", Type: JobTypeKeepAlive, CronExpr: "0 */6 * * *", Status: JobStatusPaused},
+	}
+	data, _ := json.MarshalIndent(jobs, "", "  ")
+	os.WriteFile(fp, data, 0600)
+
+	s := &Scheduler{
+		jobs:     make(map[string]*Job),
+		filePath: fp,
+		browser:  browser.GetInstance(),
+	}
+
+	s.Start()
+	defer s.Stop()
+
+	// Active job should have a non-zero cronEntryID
+	activeJob := s.jobs["active-1"]
+	if activeJob.cronEntryID == 0 {
+		t.Error("expected active job to be registered with cron runner")
+	}
+
+	// Paused job should NOT be registered
+	pausedJob := s.jobs["paused-1"]
+	if pausedJob.cronEntryID != 0 {
+		t.Error("expected paused job to not be registered with cron runner")
+	}
+}
+
+// --- computeKeepAliveCron tests ---
+
+func TestComputeKeepAliveCronDefaultFallback(t *testing.T) {
+	s := newTestScheduler(t)
+	// No cookies — should fall back to config default
+	cronExpr := s.computeKeepAliveCron(nil)
+	if cronExpr == "" {
+		t.Error("expected non-empty cron expression")
+	}
+}
+
+func TestComputeKeepAliveCronEmptyCookies(t *testing.T) {
+	s := newTestScheduler(t)
+	cronExpr := s.computeKeepAliveCron([]browser.CDPCookie{})
+	if cronExpr == "" {
+		t.Error("expected non-empty cron expression for empty cookies")
+	}
+}
+
+func TestComputeKeepAliveCronFromCookies(t *testing.T) {
+	s := newTestScheduler(t)
+	// Use a large enough future time that rounding doesn't affect the hour count.
+	cookies := []browser.CDPCookie{
+		{Expires: float64(time.Now().Add(49 * time.Hour).Unix())},
+	}
+	cronExpr := s.computeKeepAliveCron(cookies)
+	// 75% of ~49h ≈ 36h, clamped to [12h, 7d]
+	// Accept 36 or 37 due to time.Now() drift
+	if cronExpr != "0 */36 * * *" && cronExpr != "0 */37 * * *" {
+		t.Errorf("expected '0 */36 * * *' or '0 */37 * * *', got %q", cronExpr)
+	}
+}
+
+func TestComputeKeepAliveCronClampsMinimum(t *testing.T) {
+	s := newTestScheduler(t)
+	cookies := []browser.CDPCookie{
+		{Expires: float64(time.Now().Add(4 * time.Hour).Unix())},
+	}
+	cronExpr := s.computeKeepAliveCron(cookies)
+	// 75% of 4h = 3h, clamped to min 12h
+	if cronExpr != "0 */12 * * *" {
+		t.Errorf("expected '0 */12 * * *', got %q", cronExpr)
+	}
+}
+
+func TestComputeKeepAliveCronClampsMaximum(t *testing.T) {
+	s := newTestScheduler(t)
+	cookies := []browser.CDPCookie{
+		{Expires: float64(time.Now().Add(30 * 24 * time.Hour).Unix())},
+	}
+	cronExpr := s.computeKeepAliveCron(cookies)
+	// 75% of 30d = 22.5d, clamped to max 7d = 168h
+	if cronExpr != "0 */168 * * *" {
+		t.Errorf("expected '0 */168 * * *', got %q", cronExpr)
+	}
+}
+
+func TestComputeKeepAliveCronSkipsExpired(t *testing.T) {
+	s := newTestScheduler(t)
+	cookies := []browser.CDPCookie{
+		{Expires: float64(time.Now().Add(-1 * time.Hour).Unix())},
+	}
+	// All expired — should fall back to config default
+	cronExpr := s.computeKeepAliveCron(cookies)
+	if cronExpr == "" {
+		t.Error("expected non-empty cron expression for expired cookies")
+	}
+}
+
+func TestComputeKeepAliveCronSkipsZeroExpiry(t *testing.T) {
+	s := newTestScheduler(t)
+	cookies := []browser.CDPCookie{
+		{Expires: 0},
+		{Expires: float64(time.Now().Add(49 * time.Hour).Unix())},
+	}
+	cronExpr := s.computeKeepAliveCron(cookies)
+	// Should use the valid ~49h cookie, ignoring the 0-expiry one
+	if cronExpr != "0 */36 * * *" && cronExpr != "0 */37 * * *" {
+		t.Errorf("expected '0 */36 * * *' or '0 */37 * * *', got %q", cronExpr)
+	}
+}
+
+func TestComputeKeepAliveCronUsesShortestExpiry(t *testing.T) {
+	s := newTestScheduler(t)
+	cookies := []browser.CDPCookie{
+		{Expires: float64(time.Now().Add(96 * time.Hour).Unix())},
+		{Expires: float64(time.Now().Add(49 * time.Hour).Unix())},
+		{Expires: float64(time.Now().Add(72 * time.Hour).Unix())},
+	}
+	cronExpr := s.computeKeepAliveCron(cookies)
+	// Shortest is ~49h, 75% ≈ 36-37h
+	if cronExpr != "0 */36 * * *" && cronExpr != "0 */37 * * *" {
+		t.Errorf("expected '0 */36 * * *' or '0 */37 * * *', got %q", cronExpr)
+	}
+}
+
+func TestComputeKeepAliveCronSkipsNegativeExpiry(t *testing.T) {
+	s := newTestScheduler(t)
+	cookies := []browser.CDPCookie{
+		{Expires: -1},
+	}
+	cronExpr := s.computeKeepAliveCron(cookies)
+	// Negative expiry is skipped, falls back to default
+	if cronExpr == "" {
+		t.Error("expected non-empty cron for negative expiry")
+	}
+}
+
+// --- execute tests ---
+
+func TestExecuteKeepAlive(t *testing.T) {
+	s := newTestScheduler(t)
+	s.Start()
+	defer s.Stop()
+
+	job := &Job{
+		Name:      "KA Test",
+		Type:      JobTypeKeepAlive,
+		Platforms: []string{"instagram"},
+		CronExpr:  "0 */12 * * *",
+		Status:    JobStatusActive,
+	}
+
+	s.executeKeepAlive(job)
+	// Browser is not running, so should mention "browser not running"
+	if !strings.Contains(job.LastResult, "browser not running") && !strings.Contains(job.LastResult, "no stored cookies") {
+		t.Errorf("expected 'browser not running' or 'no stored cookies' in result, got %q", job.LastResult)
+	}
+}
+
+func TestExecuteKeepAliveMissingPlatform(t *testing.T) {
+	s := newTestScheduler(t)
+
+	job := &Job{
+		Name:      "KA Missing",
+		Type:      JobTypeKeepAlive,
+		Platforms: []string{"nonexistent_platform_xyz"},
+	}
+
+	s.executeKeepAlive(job)
+	if !strings.Contains(job.LastResult, "not found") {
+		t.Errorf("expected 'not found' in result, got %q", job.LastResult)
+	}
+}
+
+func TestExecuteKeepAliveNoCookies(t *testing.T) {
+	s := newTestScheduler(t)
+
+	job := &Job{
+		Name:      "KA No Cookies",
+		Type:      JobTypeKeepAlive,
+		Platforms: []string{"instagram"},
+	}
+
+	s.executeKeepAlive(job)
+	// Depending on whether cookies exist on disk from real app use,
+	// we get "no stored cookies" or "browser not running".
+	if !strings.Contains(job.LastResult, "no stored cookies") && !strings.Contains(job.LastResult, "browser not running") {
+		t.Errorf("expected 'no stored cookies' or 'browser not running' in result, got %q", job.LastResult)
+	}
+}
+
+func TestExecuteKeepAliveMultiplePlatforms(t *testing.T) {
+	s := newTestScheduler(t)
+
+	job := &Job{
+		Name:      "KA Multi",
+		Type:      JobTypeKeepAlive,
+		Platforms: []string{"instagram", "nonexistent_xyz", "facebook"},
+	}
+
+	s.executeKeepAlive(job)
+	// Should contain results for each platform separated by "; "
+	parts := strings.Split(job.LastResult, "; ")
+	if len(parts) < 2 {
+		t.Errorf("expected multiple results, got %q", job.LastResult)
+	}
+}
+
+func TestExecuteUploadNoConfig(t *testing.T) {
+	s := newTestScheduler(t)
+
+	job := &Job{
+		Name: "Upload No Config",
+		Type: JobTypeUpload,
+	}
+
+	s.executeUpload(job)
+	if job.LastResult != "no upload config" {
+		t.Errorf("expected 'no upload config', got %q", job.LastResult)
+	}
+}
+
+func TestExecuteUploadWithConfig(t *testing.T) {
+	s := newTestScheduler(t)
+
+	job := &Job{
+		Name: "Upload With Config",
+		Type: JobTypeUpload,
+		UploadConfig: &UploadConfig{
+			FilePath: "/tmp/test.mp4",
+			Caption:  "test caption",
+			Hashtags: []string{"#test"},
+		},
+		Platforms: []string{"instagram"},
+	}
+
+	s.executeUpload(job)
+	if !strings.Contains(job.LastResult, "upload scheduled") {
+		t.Errorf("expected 'upload scheduled' in result, got %q", job.LastResult)
+	}
+	if !strings.Contains(job.LastResult, "/tmp/test.mp4") {
+		t.Errorf("expected file path in result, got %q", job.LastResult)
+	}
+}
+
+func TestExecuteDispatchesKeepAlive(t *testing.T) {
+	s := newTestScheduler(t)
+	s.Start()
+	defer s.Stop()
+
+	job := s.Create(Job{
+		Name:      "Exec KA",
+		Type:      JobTypeKeepAlive,
+		Platforms: []string{"instagram"},
+		CronExpr:  "0 */12 * * *",
+	})
+
+	oldRunCount := job.RunCount
+	s.execute(job)
+
+	if job.RunCount != oldRunCount+1 {
+		t.Errorf("expected RunCount %d, got %d", oldRunCount+1, job.RunCount)
+	}
+	if job.LastRun.IsZero() {
+		t.Error("expected non-zero LastRun after execute")
+	}
+}
+
+func TestExecuteDispatchesUpload(t *testing.T) {
+	s := newTestScheduler(t)
+	s.Start()
+	defer s.Stop()
+
+	job := s.Create(Job{
+		Name:     "Exec Upload",
+		Type:     JobTypeUpload,
+		CronExpr: "0 */12 * * *",
+	})
+
+	s.execute(job)
+
+	if job.RunCount != 1 {
+		t.Errorf("expected RunCount 1, got %d", job.RunCount)
+	}
+	// No upload config, should have "no upload config"
+	if job.LastResult != "no upload config" {
+		t.Errorf("expected 'no upload config', got %q", job.LastResult)
+	}
+}
+
+func TestExecuteUnknownJobType(t *testing.T) {
+	s := newTestScheduler(t)
+	s.Start()
+	defer s.Stop()
+
+	job := s.Create(Job{
+		Name:     "Unknown Type",
+		Type:     JobType("unknown_type"),
+		CronExpr: "0 */12 * * *",
+	})
+
+	// Should not panic
+	s.execute(job)
+	if job.RunCount != 1 {
+		t.Errorf("expected RunCount 1, got %d", job.RunCount)
+	}
+}
+
+// --- Load with invalid data ---
+
+func TestLoadInvalidJSON(t *testing.T) {
+	tmpDir := t.TempDir()
+	fp := filepath.Join(tmpDir, "schedules.json")
+	os.WriteFile(fp, []byte("not valid json {["), 0600)
+
+	s := &Scheduler{
+		jobs:     make(map[string]*Job),
+		filePath: fp,
+		browser:  browser.GetInstance(),
+	}
+	s.load()
+	// Should not crash, jobs should be empty
+	if len(s.jobs) != 0 {
+		t.Errorf("expected 0 jobs after invalid JSON load, got %d", len(s.jobs))
+	}
+}
+
+func TestLoadMissingFile(t *testing.T) {
+	s := &Scheduler{
+		jobs:     make(map[string]*Job),
+		filePath: "/nonexistent/path/schedules.json",
+		browser:  browser.GetInstance(),
+	}
+	s.load()
+	if len(s.jobs) != 0 {
+		t.Errorf("expected 0 jobs for missing file, got %d", len(s.jobs))
+	}
+}
+
+// --- registerJob with invalid cron ---
+
+func TestRegisterJobWithInvalidCron(t *testing.T) {
+	s := newTestScheduler(t)
+	s.Start()
+	defer s.Stop()
+
+	job := s.Create(Job{
+		Name:     "Bad Cron",
+		Type:     JobTypeKeepAlive,
+		CronExpr: "invalid cron expression !!",
+	})
+
+	if job.Status != JobStatusFailed {
+		t.Errorf("expected status failed for invalid cron, got %s", job.Status)
+	}
+	if !strings.Contains(job.LastResult, "invalid cron") {
+		t.Errorf("expected 'invalid cron' in LastResult, got %q", job.LastResult)
+	}
+}
+
+// --- registerJob with nil cronRunner ---
+
+func TestRegisterJobNilCronRunner(t *testing.T) {
+	s := newTestScheduler(t)
+	// Don't call Start(), so cronRunner is nil
+
+	job := &Job{
+		Name:     "No Runner",
+		Type:     JobTypeKeepAlive,
+		CronExpr: "0 */12 * * *",
+		Status:   JobStatusActive,
+	}
+
+	// Should not panic
+	s.registerJob(job)
+	if job.cronEntryID != 0 {
+		t.Error("expected cronEntryID 0 when cronRunner is nil")
+	}
+}
+
+func TestUnregisterJobNilCronRunner(t *testing.T) {
+	s := newTestScheduler(t)
+
+	job := &Job{
+		Name:     "No Runner",
+		Type:     JobTypeKeepAlive,
+		CronExpr: "0 */12 * * *",
+	}
+
+	// Should not panic
+	s.unregisterJob(job)
+}
+
+// --- Persist tests ---
+
+func TestPersistCreatesDirectory(t *testing.T) {
+	tmpDir := t.TempDir()
+	fp := filepath.Join(tmpDir, "subdir", "deep", "schedules.json")
+
+	s := &Scheduler{
+		jobs:     make(map[string]*Job),
+		filePath: fp,
+		browser:  browser.GetInstance(),
+	}
+
+	s.jobs["test"] = &Job{ID: "test", Name: "Persist Dir Test"}
+	s.persist()
+
+	if _, err := os.Stat(fp); err != nil {
+		t.Fatalf("persist did not create file: %v", err)
 	}
 }

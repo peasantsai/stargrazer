@@ -1,9 +1,14 @@
 package browser
 
 import (
+	"encoding/json"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
+
+	"stargrazer/internal/config"
 )
 
 func TestParseNetscapeCookiesValid(t *testing.T) {
@@ -242,5 +247,531 @@ func TestCDPCookieStruct(t *testing.T) {
 	}
 	if !c.Secure {
 		t.Error("expected Secure true")
+	}
+}
+
+// --- buildArgs tests ---
+
+func resetSingleton(t *testing.T) *Manager {
+	t.Helper()
+	once = sync.Once{}
+	instance = nil
+	t.Cleanup(func() {
+		once = sync.Once{}
+		instance = nil
+	})
+	return GetInstance()
+}
+
+func TestBuildArgsDefault(t *testing.T) {
+	m := resetSingleton(t)
+
+	cfg := config.BrowserConfig{CDPPort: 9222}
+	args := m.buildArgs(cfg)
+
+	found := false
+	for _, a := range args {
+		if a == "--remote-debugging-port=9222" {
+			found = true
+		}
+		if a == "--headless=new" {
+			t.Error("--headless=new should not be present when Headless is false")
+		}
+		if strings.HasPrefix(a, "--user-data-dir=") {
+			t.Error("--user-data-dir should not be present when UserDataDir is empty")
+		}
+		if strings.HasPrefix(a, "--window-size=") {
+			t.Error("--window-size should not be present when dimensions are 0")
+		}
+	}
+	if !found {
+		t.Error("expected --remote-debugging-port=9222 in args")
+	}
+
+	// Should always contain --no-first-run
+	hasNoFirstRun := false
+	for _, a := range args {
+		if a == "--no-first-run" {
+			hasNoFirstRun = true
+		}
+	}
+	if !hasNoFirstRun {
+		t.Error("expected --no-first-run in args")
+	}
+
+	// Should always contain --no-default-browser-check
+	hasNoCheck := false
+	for _, a := range args {
+		if a == "--no-default-browser-check" {
+			hasNoCheck = true
+		}
+	}
+	if !hasNoCheck {
+		t.Error("expected --no-default-browser-check in args")
+	}
+}
+
+func TestBuildArgsHeadless(t *testing.T) {
+	m := resetSingleton(t)
+
+	cfg := config.BrowserConfig{CDPPort: 9222, Headless: true}
+	args := m.buildArgs(cfg)
+
+	found := false
+	for _, a := range args {
+		if a == "--headless=new" {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("expected --headless=new when Headless is true")
+	}
+}
+
+func TestBuildArgsUserDataDir(t *testing.T) {
+	m := resetSingleton(t)
+
+	cfg := config.BrowserConfig{CDPPort: 9222, UserDataDir: "/tmp/profile"}
+	args := m.buildArgs(cfg)
+
+	found := false
+	for _, a := range args {
+		if a == "--user-data-dir=/tmp/profile" {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("expected --user-data-dir=/tmp/profile in args")
+	}
+}
+
+func TestBuildArgsWindowSize(t *testing.T) {
+	m := resetSingleton(t)
+
+	cfg := config.BrowserConfig{CDPPort: 9222, WindowWidth: 1920, WindowHeight: 1080}
+	args := m.buildArgs(cfg)
+
+	found := false
+	for _, a := range args {
+		if a == "--window-size=1920,1080" {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("expected --window-size=1920,1080 in args")
+	}
+}
+
+func TestBuildArgsWindowSizePartialZero(t *testing.T) {
+	m := resetSingleton(t)
+
+	// Only width set, height is 0 — should NOT add --window-size
+	cfg := config.BrowserConfig{CDPPort: 9222, WindowWidth: 1920, WindowHeight: 0}
+	args := m.buildArgs(cfg)
+
+	for _, a := range args {
+		if strings.HasPrefix(a, "--window-size=") {
+			t.Error("--window-size should not be present when one dimension is 0")
+		}
+	}
+}
+
+func TestBuildArgsExtraFlags(t *testing.T) {
+	m := resetSingleton(t)
+
+	cfg := config.BrowserConfig{
+		CDPPort:    9222,
+		ExtraFlags: []string{"--disable-gpu", "--mute-audio"},
+	}
+	args := m.buildArgs(cfg)
+
+	hasGPU := false
+	hasMute := false
+	for _, a := range args {
+		if a == "--disable-gpu" {
+			hasGPU = true
+		}
+		if a == "--mute-audio" {
+			hasMute = true
+		}
+	}
+	if !hasGPU {
+		t.Error("expected --disable-gpu in args")
+	}
+	if !hasMute {
+		t.Error("expected --mute-audio in args")
+	}
+}
+
+func TestBuildArgsCombined(t *testing.T) {
+	m := resetSingleton(t)
+
+	cfg := config.BrowserConfig{
+		CDPPort:      9333,
+		Headless:     true,
+		UserDataDir:  "/data/session",
+		WindowWidth:  800,
+		WindowHeight: 600,
+		ExtraFlags:   []string{"--custom-flag"},
+	}
+	args := m.buildArgs(cfg)
+
+	checks := map[string]bool{
+		"--remote-debugging-port=9333": false,
+		"--headless=new":               false,
+		"--user-data-dir=/data/session": false,
+		"--window-size=800,600":         false,
+		"--custom-flag":                 false,
+		"--no-first-run":                false,
+	}
+	for _, a := range args {
+		if _, ok := checks[a]; ok {
+			checks[a] = true
+		}
+	}
+	for expected, found := range checks {
+		if !found {
+			t.Errorf("expected %q in args", expected)
+		}
+	}
+}
+
+// --- resolveChromiumPath tests ---
+
+func TestResolveChromiumPathOverride(t *testing.T) {
+	m := resetSingleton(t)
+	result := m.resolveChromiumPath("/custom/path/to/chrome")
+	if result != "/custom/path/to/chrome" {
+		t.Errorf("expected override path, got %q", result)
+	}
+}
+
+func TestResolveChromiumPathFallback(t *testing.T) {
+	m := resetSingleton(t)
+	result := m.resolveChromiumPath("")
+	// Should return something non-empty (at minimum the binary name)
+	if result == "" {
+		t.Error("expected non-empty fallback path")
+	}
+}
+
+func TestResolveChromiumPathPublicMethod(t *testing.T) {
+	m := resetSingleton(t)
+	result := m.ResolveChromiumPath()
+	if result == "" {
+		t.Error("ResolveChromiumPath() returned empty string")
+	}
+}
+
+// --- resolveExtensionPath tests ---
+
+func TestResolveExtensionPathInTestEnv(t *testing.T) {
+	m := resetSingleton(t)
+	// In test environment, the assets/cookies-extension directory likely does not exist
+	// so this should return empty or a valid path. Either is acceptable.
+	result := m.resolveExtensionPath()
+	// Just verify it doesn't panic; the result depends on the test environment
+	_ = result
+}
+
+// --- Stop when not running ---
+
+func TestStopWhenNotRunning(t *testing.T) {
+	m := resetSingleton(t)
+	err := m.Stop()
+	if err != nil {
+		t.Errorf("Stop() on non-running manager returned error: %v", err)
+	}
+	status, _ := m.GetStatus()
+	if status != StatusStopped {
+		t.Errorf("expected StatusStopped after Stop(), got %s", status)
+	}
+}
+
+// --- StartWithOptions error paths ---
+
+func TestStartWithOptionsAlreadyRunning(t *testing.T) {
+	m := resetSingleton(t)
+	m.mu.Lock()
+	m.status = StatusRunning
+	m.mu.Unlock()
+	defer func() {
+		m.mu.Lock()
+		m.status = StatusStopped
+		m.mu.Unlock()
+	}()
+
+	err := m.StartWithOptions("", "")
+	if err == nil {
+		t.Fatal("expected error when browser already running")
+	}
+	if !strings.Contains(err.Error(), "already") {
+		t.Errorf("expected 'already' in error, got %q", err.Error())
+	}
+}
+
+func TestStartWithOptionsAlreadyStarting(t *testing.T) {
+	m := resetSingleton(t)
+	m.mu.Lock()
+	m.status = StatusStarting
+	m.mu.Unlock()
+	defer func() {
+		m.mu.Lock()
+		m.status = StatusStopped
+		m.mu.Unlock()
+	}()
+
+	err := m.StartWithOptions("", "")
+	if err == nil {
+		t.Fatal("expected error when browser already starting")
+	}
+	if !strings.Contains(err.Error(), "already") {
+		t.Errorf("expected 'already' in error, got %q", err.Error())
+	}
+}
+
+func TestStartWithOptionsChromiumNotFound(t *testing.T) {
+	m := resetSingleton(t)
+
+	// Set a chromium path override to a nonexistent binary
+	config.Update(func(c *config.AppConfig) {
+		c.Browser.ChromiumPath = "/nonexistent/path/to/chrome_binary_xyz"
+	})
+	defer config.Reset()
+
+	err := m.StartWithOptions("", "")
+	if err == nil {
+		t.Fatal("expected error when chromium not found")
+	}
+	if !strings.Contains(err.Error(), "not found") {
+		t.Errorf("expected 'not found' in error, got %q", err.Error())
+	}
+
+	status, lastErr := m.GetStatus()
+	if status != StatusError {
+		t.Errorf("expected StatusError, got %s", status)
+	}
+	if lastErr == "" {
+		t.Error("expected non-empty lastErr")
+	}
+}
+
+func TestStartCallsStartWithOptions(t *testing.T) {
+	m := resetSingleton(t)
+
+	// Start without any chromium installed should fail
+	config.Update(func(c *config.AppConfig) {
+		c.Browser.ChromiumPath = "/nonexistent/chrome_for_start_test"
+	})
+	defer config.Reset()
+
+	err := m.Start()
+	if err == nil {
+		t.Fatal("expected error from Start() when chromium not found")
+	}
+}
+
+// --- LoadCookiesFromDisk tests ---
+
+func TestLoadCookiesFromDiskValid(t *testing.T) {
+	tmpDir := t.TempDir()
+	cookiesDir := filepath.Join(tmpDir, "cookies")
+	os.MkdirAll(cookiesDir, 0700)
+
+	data := `[{"name":"session","value":"abc","domain":".example.com","path":"/","expires":1700000000}]`
+	os.WriteFile(filepath.Join(cookiesDir, "test.json"), []byte(data), 0600)
+
+	cookies, err := LoadCookiesFromDisk("test", tmpDir)
+	if err != nil {
+		t.Fatalf("LoadCookiesFromDisk returned error: %v", err)
+	}
+	if len(cookies) != 1 {
+		t.Fatalf("expected 1 cookie, got %d", len(cookies))
+	}
+	if cookies[0].Name != "session" {
+		t.Errorf("expected name 'session', got %q", cookies[0].Name)
+	}
+	if cookies[0].Value != "abc" {
+		t.Errorf("expected value 'abc', got %q", cookies[0].Value)
+	}
+	if cookies[0].Domain != ".example.com" {
+		t.Errorf("expected domain '.example.com', got %q", cookies[0].Domain)
+	}
+}
+
+func TestLoadCookiesFromDiskMultipleCookies(t *testing.T) {
+	tmpDir := t.TempDir()
+	cookiesDir := filepath.Join(tmpDir, "cookies")
+	os.MkdirAll(cookiesDir, 0700)
+
+	data := `[
+		{"name":"a","value":"1","domain":".ex.com"},
+		{"name":"b","value":"2","domain":".ex.com"},
+		{"name":"c","value":"3","domain":".other.com"}
+	]`
+	os.WriteFile(filepath.Join(cookiesDir, "multi.json"), []byte(data), 0600)
+
+	cookies, err := LoadCookiesFromDisk("multi", tmpDir)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(cookies) != 3 {
+		t.Fatalf("expected 3 cookies, got %d", len(cookies))
+	}
+}
+
+func TestLoadCookiesFromDiskMissing(t *testing.T) {
+	_, err := LoadCookiesFromDisk("nonexistent", t.TempDir())
+	if err == nil {
+		t.Error("expected error for missing cookies file")
+	}
+}
+
+func TestLoadCookiesFromDiskInvalidJSON(t *testing.T) {
+	tmpDir := t.TempDir()
+	cookiesDir := filepath.Join(tmpDir, "cookies")
+	os.MkdirAll(cookiesDir, 0700)
+	os.WriteFile(filepath.Join(cookiesDir, "bad.json"), []byte("not valid json {["), 0600)
+
+	_, err := LoadCookiesFromDisk("bad", tmpDir)
+	if err == nil {
+		t.Error("expected error for invalid JSON")
+	}
+}
+
+func TestLoadCookiesFromDiskEmptyArray(t *testing.T) {
+	tmpDir := t.TempDir()
+	cookiesDir := filepath.Join(tmpDir, "cookies")
+	os.MkdirAll(cookiesDir, 0700)
+	os.WriteFile(filepath.Join(cookiesDir, "empty.json"), []byte("[]"), 0600)
+
+	cookies, err := LoadCookiesFromDisk("empty", tmpDir)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(cookies) != 0 {
+		t.Errorf("expected 0 cookies, got %d", len(cookies))
+	}
+}
+
+// --- pinExtension tests ---
+
+func TestPinExtensionCreatesPrefsFile(t *testing.T) {
+	m := resetSingleton(t)
+	tmpDir := t.TempDir()
+
+	m.pinExtension(tmpDir)
+
+	prefsPath := filepath.Join(tmpDir, "Default", "Preferences")
+	data, err := os.ReadFile(prefsPath)
+	if err != nil {
+		t.Fatalf("Preferences file not created: %v", err)
+	}
+
+	var prefs map[string]interface{}
+	if err := json.Unmarshal(data, &prefs); err != nil {
+		t.Fatalf("Preferences is not valid JSON: %v", err)
+	}
+
+	// Verify the extension is pinned
+	extensions, ok := prefs["extensions"].(map[string]interface{})
+	if !ok {
+		t.Fatal("expected 'extensions' key in prefs")
+	}
+	toolbar, ok := extensions["toolbar"].(map[string]interface{})
+	if !ok {
+		t.Fatal("expected 'toolbar' key in extensions")
+	}
+	pinned, ok := toolbar["pinned_extensions"].([]interface{})
+	if !ok {
+		t.Fatal("expected 'pinned_extensions' key in toolbar")
+	}
+	if len(pinned) != 1 {
+		t.Fatalf("expected 1 pinned extension, got %d", len(pinned))
+	}
+	if pinned[0] != "edoacekkjanmingkbkgjndndibhkegno" {
+		t.Errorf("unexpected extension ID: %v", pinned[0])
+	}
+}
+
+func TestPinExtensionMergesExistingPrefs(t *testing.T) {
+	m := resetSingleton(t)
+	tmpDir := t.TempDir()
+
+	// Write existing prefs
+	defaultDir := filepath.Join(tmpDir, "Default")
+	os.MkdirAll(defaultDir, 0700)
+	existing := `{"browser":{"theme":"dark"}}`
+	os.WriteFile(filepath.Join(defaultDir, "Preferences"), []byte(existing), 0600)
+
+	m.pinExtension(tmpDir)
+
+	data, err := os.ReadFile(filepath.Join(defaultDir, "Preferences"))
+	if err != nil {
+		t.Fatalf("failed to read prefs: %v", err)
+	}
+
+	var prefs map[string]interface{}
+	json.Unmarshal(data, &prefs)
+
+	// Should have both "browser" and "extensions" keys
+	if _, ok := prefs["browser"]; !ok {
+		t.Error("expected 'browser' key preserved in merged prefs")
+	}
+	if _, ok := prefs["extensions"]; !ok {
+		t.Error("expected 'extensions' key added in merged prefs")
+	}
+
+	// Verify browser.theme is preserved
+	browserMap, _ := prefs["browser"].(map[string]interface{})
+	if browserMap["theme"] != "dark" {
+		t.Error("expected browser.theme 'dark' to be preserved")
+	}
+}
+
+func TestPinExtensionIdempotent(t *testing.T) {
+	m := resetSingleton(t)
+	tmpDir := t.TempDir()
+
+	// Pin twice — should not duplicate the extension ID
+	m.pinExtension(tmpDir)
+	m.pinExtension(tmpDir)
+
+	prefsPath := filepath.Join(tmpDir, "Default", "Preferences")
+	data, _ := os.ReadFile(prefsPath)
+	var prefs map[string]interface{}
+	json.Unmarshal(data, &prefs)
+
+	extensions := prefs["extensions"].(map[string]interface{})
+	toolbar := extensions["toolbar"].(map[string]interface{})
+	pinned := toolbar["pinned_extensions"].([]interface{})
+
+	if len(pinned) != 1 {
+		t.Errorf("expected 1 pinned extension after double pin, got %d", len(pinned))
+	}
+}
+
+func TestPinExtensionWithExistingExtensions(t *testing.T) {
+	m := resetSingleton(t)
+	tmpDir := t.TempDir()
+
+	// Write prefs with existing extensions/toolbar structure
+	defaultDir := filepath.Join(tmpDir, "Default")
+	os.MkdirAll(defaultDir, 0700)
+	existing := `{"extensions":{"toolbar":{"pinned_extensions":["some_other_ext"]}}}`
+	os.WriteFile(filepath.Join(defaultDir, "Preferences"), []byte(existing), 0600)
+
+	m.pinExtension(tmpDir)
+
+	data, _ := os.ReadFile(filepath.Join(defaultDir, "Preferences"))
+	var prefs map[string]interface{}
+	json.Unmarshal(data, &prefs)
+
+	extensions := prefs["extensions"].(map[string]interface{})
+	toolbar := extensions["toolbar"].(map[string]interface{})
+	pinned := toolbar["pinned_extensions"].([]interface{})
+
+	if len(pinned) != 2 {
+		t.Errorf("expected 2 pinned extensions, got %d", len(pinned))
 	}
 }
