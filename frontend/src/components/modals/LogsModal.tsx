@@ -44,18 +44,13 @@ export function LogsModal({ onClose }: Props) {
   };
 
   return (
-    <div
+    <dialog
       className="modal-overlay"
-      onClick={onClose}
+      open
+      onClick={e => { if (e.target === e.currentTarget) onClose(); }}
       onKeyDown={e => { if (e.key === 'Escape') onClose(); }}
     >
-      <div
-        className="modal-content logs-modal"
-        role="dialog"
-        aria-modal="true"
-        onClick={e => e.stopPropagation()}
-        onKeyDown={e => e.stopPropagation()}
-      >
+      <div className="modal-content logs-modal">
         <div className="modal-header">
           <h3>Application Logs</h3>
           <div style={{ display: 'flex', gap: 8 }}>
@@ -93,6 +88,6 @@ export function LogsModal({ onClose }: Props) {
           <div ref={bottomRef} />
         </div>
       </div>
-    </div>
+    </dialog>
   );
 }

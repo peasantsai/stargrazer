@@ -20,18 +20,13 @@ export function AccountModal({ account, updateAccount, onClose }: Props) {
   };
 
   return (
-    <div
+    <dialog
       className="modal-overlay"
-      onClick={onClose}
+      open
+      onClick={e => { if (e.target === e.currentTarget) onClose(); }}
       onKeyDown={e => { if (e.key === 'Escape') onClose(); }}
     >
-      <div
-        className="modal-content"
-        role="dialog"
-        aria-modal="true"
-        onClick={e => e.stopPropagation()}
-        onKeyDown={e => e.stopPropagation()}
-      >
+      <div className="modal-content">
         <div className="modal-header">
           <h3>Account Settings</h3>
           <button className="modal-close" onClick={onClose} aria-label="Close">
@@ -84,6 +79,6 @@ export function AccountModal({ account, updateAccount, onClose }: Props) {
           <button className="btn-secondary" onClick={onClose}>Cancel</button>
         </div>
       </div>
-    </div>
+    </dialog>
   );
 }

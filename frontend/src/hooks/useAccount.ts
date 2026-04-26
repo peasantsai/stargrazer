@@ -32,9 +32,9 @@ export function useAccount(): [AccountInfo, (partial: Partial<AccountInfo>) => v
 
   const updateAccount = (partial: Partial<AccountInfo>) => {
     const next: AccountInfo = {
-      name:      typeof partial.name      === 'string' ? sanitizeField(partial.name)      : account.name,
-      email:     typeof partial.email     === 'string' ? sanitizeField(partial.email)     : account.email,
-      avatarUrl: typeof partial.avatarUrl === 'string' ? sanitizeField(partial.avatarUrl) : account.avatarUrl,
+      name:      sanitizeField(typeof partial.name      === 'string' ? partial.name      : account.name),
+      email:     sanitizeField(typeof partial.email     === 'string' ? partial.email     : account.email),
+      avatarUrl: sanitizeField(typeof partial.avatarUrl === 'string' ? partial.avatarUrl : account.avatarUrl),
     };
     setAccount(next);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(next));

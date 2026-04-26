@@ -21,18 +21,13 @@ interface Props {
 
 export function ScheduleDetailModal({ job, onClose, onDelete, onPauseResume }: Props) {
   return (
-    <div
+    <dialog
       className="modal-overlay"
-      onClick={onClose}
+      open
+      onClick={e => { if (e.target === e.currentTarget) onClose(); }}
       onKeyDown={e => { if (e.key === 'Escape') onClose(); }}
     >
-      <div
-        className="modal-content"
-        role="dialog"
-        aria-modal="true"
-        onClick={e => e.stopPropagation()}
-        onKeyDown={e => e.stopPropagation()}
-      >
+      <div className="modal-content">
         <div className="modal-header">
           <h3>{job.name}</h3>
           <button className="modal-close" onClick={onClose} aria-label="Close">
@@ -115,6 +110,6 @@ export function ScheduleDetailModal({ job, onClose, onDelete, onPauseResume }: P
           <button className="btn-secondary" onClick={onClose}>Close</button>
         </div>
       </div>
-    </div>
+    </dialog>
   );
 }

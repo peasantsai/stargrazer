@@ -60,18 +60,15 @@ export function CreateScheduleModal({ platforms, onCreated, onCancel }: Props) {
   };
 
   return (
-    <div
+    <dialog
       className="modal-overlay"
-      onClick={onCancel}
+      open
+      onClick={e => { if (e.target === e.currentTarget) onCancel(); }}
       onKeyDown={e => { if (e.key === 'Escape') onCancel(); }}
     >
       <div
         className="modal-content"
         style={{ width: 500 }}
-        role="dialog"
-        aria-modal="true"
-        onClick={e => e.stopPropagation()}
-        onKeyDown={e => e.stopPropagation()}
       >
         <div className="modal-header">
           <h3>Create Schedule</h3>
@@ -199,6 +196,6 @@ export function CreateScheduleModal({ platforms, onCreated, onCancel }: Props) {
           <button className="btn-secondary" onClick={onCancel}>Cancel</button>
         </div>
       </div>
-    </div>
+    </dialog>
   );
 }

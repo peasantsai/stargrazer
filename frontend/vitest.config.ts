@@ -4,13 +4,12 @@ import path from 'node:path';
 export default defineConfig({
   resolve: {
     alias: [
-      // Match any relative depth: ../wailsjs, ../../wailsjs, ../../../wailsjs, etc.
       {
-        find: /.*\/wailsjs\/go\/main\/App/,
+        find: /wailsjs\/go\/main\/App/,
         replacement: path.resolve(__dirname, 'src/test/wailsMock.ts'),
       },
       {
-        find: /.*\/wailsjs\/go\/models/,
+        find: /wailsjs\/go\/models/,
         replacement: path.resolve(__dirname, 'src/test/modelsMock.ts'),
       },
     ],

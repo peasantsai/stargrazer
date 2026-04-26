@@ -14,18 +14,13 @@ export function CookiePasteModal({ platform, onImport, onCancel }: Props) {
   const lineCount = cookieText.split('\n').filter(l => l.trim() && !l.startsWith('#')).length;
 
   return (
-    <div
+    <dialog
       className="modal-overlay"
-      onClick={onCancel}
+      open
+      onClick={e => { if (e.target === e.currentTarget) onCancel(); }}
       onKeyDown={e => { if (e.key === 'Escape') onCancel(); }}
     >
-      <div
-        className="modal-content cookie-modal"
-        role="dialog"
-        aria-modal="true"
-        onClick={e => e.stopPropagation()}
-        onKeyDown={e => e.stopPropagation()}
-      >
+      <div className="modal-content cookie-modal">
         <div className="modal-header">
           <div className="modal-title-row">
             <div
@@ -92,6 +87,6 @@ export function CookiePasteModal({ platform, onImport, onCancel }: Props) {
           <button className="btn-secondary" onClick={onCancel}>Cancel</button>
         </div>
       </div>
-    </div>
+    </dialog>
   );
 }

@@ -159,18 +159,13 @@ export function SocialMediaSection({ onBrowserStatusChange, addMessage, refreshP
       )}
 
       {infoModal && (
-        <div
+        <dialog
           className="modal-overlay"
-          onClick={() => setInfoModal(null)}
+          open
+          onClick={e => { if (e.target === e.currentTarget) setInfoModal(null); }}
           onKeyDown={e => { if (e.key === 'Escape') setInfoModal(null); }}
         >
-          <div
-            className="modal-content"
-            role="dialog"
-            aria-modal="true"
-            onClick={e => e.stopPropagation()}
-            onKeyDown={e => e.stopPropagation()}
-          >
+          <div className="modal-content">
             <div className="modal-header">
               <div className="modal-title-row">
                 <div
@@ -241,7 +236,7 @@ export function SocialMediaSection({ onBrowserStatusChange, addMessage, refreshP
               <button className="btn-secondary" onClick={() => setInfoModal(null)}>Close</button>
             </div>
           </div>
-        </div>
+        </dialog>
       )}
     </div>
   );
