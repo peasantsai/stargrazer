@@ -3,10 +3,17 @@ import path from 'path';
 
 export default defineConfig({
   resolve: {
-    alias: {
-      '../wailsjs/go/main/App': path.resolve(__dirname, 'src/test/wailsMock.ts'),
-      '../wailsjs/go/models': path.resolve(__dirname, 'src/test/modelsMock.ts'),
-    },
+    alias: [
+      // Match any relative depth: ../wailsjs, ../../wailsjs, ../../../wailsjs, etc.
+      {
+        find: /.*\/wailsjs\/go\/main\/App/,
+        replacement: path.resolve(__dirname, 'src/test/wailsMock.ts'),
+      },
+      {
+        find: /.*\/wailsjs\/go\/models/,
+        replacement: path.resolve(__dirname, 'src/test/modelsMock.ts'),
+      },
+    ],
   },
   test: {
     globals: true,
