@@ -7,7 +7,16 @@
   "frontend:dev:watcher": "npm run dev",
   "frontend:dev:serverUrl": "auto",
   "author": {
-    "name": "",
-    "email": ""
-  }
+    "name": "Stargrazer",
+    "email": "stargrazer@users.noreply.github.com"
+  },
+  "info": {
+    "companyName": "Stargrazer",
+    "productName": "Stargrazer",
+    "productVersion": "0.1.0",
+    "copyright": "Copyright 2026 Stargrazer Contributors",
+    "comments": "Social media automation with bundled Chromium and CDP"
+  },
+  "obfuscated": false,
+  "garbleargs": "-literals -tiny"
 }

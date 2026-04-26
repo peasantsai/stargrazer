@@ -43,18 +43,18 @@ jobs:
         with:
           node-version: '24'
 
-      - name: Install Linux dependencies
-        if: inputs.goos == 'linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev pkg-config
+      # Platform dependencies (gtk/webkit/gstreamer on linux, nsis on windows)
+      - name: Install dependencies
+        shell: bash
+        run: bash scripts/ci/install-deps.sh "${{ inputs.goos }}"
 
+      # Cache Chromium
       - name: Cache Chromium
         id: chromium-cache
         uses: actions/cache@v5
         with:
           path: assets/chromium-bundle
-          key: ${{ inputs.chromium_cache_key }}-v2
+          key: ${{ inputs.chromium_cache_key }}-v3
 
       - name: Download Chromium
         if: steps.chromium-cache.outputs.cache-hit != 'true'
@@ -66,33 +66,37 @@ jobs:
         shell: bash
         run: bash scripts/ci/clean-chromium.sh "assets/chromium-bundle"
 
+      # Install build tools
       - name: Install Wails
         shell: bash
         run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
+
+      - name: Install garble (obfuscation)
+        shell: bash
+        run: go install mvdan.cc/garble@latest
 
       - name: Install UPX (Linux)
         if: inputs.goos == 'linux'
         run: sudo apt-get install -y upx-ucl
 
-      - name: Install NSIS (Windows)
-        if: inputs.goos == 'windows'
-        shell: bash
-        run: choco install nsis -y
-
+      # Build (follows wails platform guides)
       - name: Build
         shell: bash
         env:
           CGO_ENABLED: 1
         run: bash scripts/ci/build.sh "${{ inputs.goos }}" "${{ inputs.platform }}" "${{ inputs.version }}"
 
+      # Post-build: compress linux binary
       - name: Compress with UPX
         if: inputs.goos == 'linux'
         run: upx --best build/bin/stargrazer || true
 
+      # Bundle Chromium + extension into output
       - name: Bundle assets
         shell: bash
         run: bash scripts/ci/bundle-assets.sh "build/bin"
 
+      # Package for distribution
       - name: Package
         shell: bash
         run: bash scripts/ci/package.sh "${{ inputs.goos }}" "${{ inputs.artifact_name }}" "${{ inputs.version }}"
