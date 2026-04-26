@@ -1,16 +1,21 @@
 import { defineConfig } from 'vitest/config';
 import path from 'node:path';
 
+const wailsMock = path.resolve(__dirname, 'src/test/wailsMock.ts');
+const modelsMock = path.resolve(__dirname, 'src/test/modelsMock.ts');
+
 export default defineConfig({
   resolve: {
     alias: [
       {
         find: /wailsjs\/go\/main\/App/,
-        replacement: path.resolve(__dirname, 'src/test/wailsMock.ts'),
+        replacement: wailsMock,
+        customResolver: () => wailsMock,
       },
       {
         find: /wailsjs\/go\/models/,
-        replacement: path.resolve(__dirname, 'src/test/modelsMock.ts'),
+        replacement: modelsMock,
+        customResolver: () => modelsMock,
       },
     ],
   },
@@ -22,6 +27,7 @@ export default defineConfig({
       provider: 'v8',
       reporter: ['text', 'lcov'],
       reportsDirectory: './coverage',
+      all: false,
       include: ['src/**/*.{ts,tsx}'],
       exclude: ['src/test/**', 'src/vite-env.d.ts', 'src/main.tsx'],
     },
