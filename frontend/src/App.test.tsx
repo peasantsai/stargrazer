@@ -12,8 +12,8 @@ import App from './App';
 Element.prototype.scrollIntoView = vi.fn();
 
 // Mock URL.createObjectURL and URL.revokeObjectURL
-global.URL.createObjectURL = vi.fn(() => 'blob:mock');
-global.URL.revokeObjectURL = vi.fn();
+window.URL.createObjectURL = vi.fn(() => 'blob:mock');
+window.URL.revokeObjectURL = vi.fn();
 
 beforeEach(() => {
   vi.clearAllMocks();

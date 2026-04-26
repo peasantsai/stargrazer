@@ -47,7 +47,7 @@ jobs:
       # --- Grype: vulnerability scan ---
 
       - name: Install Grype
-        uses: anchore/scan-action/download-grype@2c901ab7378897c01b8efaa2d0c9bf519cc64b9e # v5.4.1
+        run: curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b /usr/local/bin
 
       - name: Scan Go SBOM for vulnerabilities
         run: |
