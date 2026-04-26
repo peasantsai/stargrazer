@@ -1,0 +1,61 @@
+site_name: Stargrazer
+site_url: https://peasantsai.github.io/stargrazer
+site_description: Social media automation desktop app with bundled Chromium and CDP
+repo_url: https://github.com/peasantsai/stargrazer
+repo_name: peasantsai/stargrazer
+
+theme:
+  name: material
+  palette:
+    - scheme: slate
+      primary: deep purple
+      accent: purple
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+    - scheme: default
+      primary: deep purple
+      accent: purple
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+  features:
+    - navigation.instant
+    - navigation.tabs
+    - navigation.sections
+    - navigation.top
+    - search.highlight
+    - content.code.copy
+
+nav:
+  - Home: index.md
+  - Getting Started:
+    - Installation: getting-started/installation.md
+    - First Run: getting-started/first-run.md
+    - Connecting Accounts: getting-started/connecting-accounts.md
+  - User Guide:
+    - Chat & Uploads: guide/chat-uploads.md
+    - Schedules: guide/schedules.md
+    - Settings: guide/settings.md
+    - Themes: guide/themes.md
+  - Architecture:
+    - Overview: architecture/overview.md
+    - Backend Packages: architecture/backend.md
+    - Frontend: architecture/frontend.md
+    - CDP Integration: architecture/cdp.md
+  - Development:
+    - Setup: development/setup.md
+    - CI/CD: development/ci-cd.md
+    - Contributing: development/contributing.md
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - toc:
+      permalink: true

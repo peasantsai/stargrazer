@@ -1,19 +1,47 @@
-# README
+# Stargrazer
 
-## About
+[![CI](https://github.com/peasantsai/stargrazer/actions/workflows/ci.yml/badge.svg)](https://github.com/peasantsai/stargrazer/actions/workflows/ci.yml)
+[![Release](https://github.com/peasantsai/stargrazer/actions/workflows/release.yml/badge.svg)](https://github.com/peasantsai/stargrazer/actions/workflows/release.yml)
+[![Quality Gate](https://sonarcloud.io/api/project_badges/measure?project=peasantsai_stargrazer&metric=alert_status)](https://sonarcloud.io/dashboard?id=peasantsai_stargrazer)
 
-This is the official Wails React-TS template.
+A desktop application for social media automation, built with Go, React, and a bundled Ungoogled Chromium browser controlled via the Chrome DevTools Protocol (CDP).
 
-You can configure the project by editing `wails.json`. More information about the project settings can be found
-here: https://wails.io/docs/reference/project-config
+## Features
 
-## Live Development
+- **Bundled stealth browser** — Ungoogled Chromium with anti-detection flags, no telemetry
+- **6 platforms** — Facebook, Instagram, TikTok, YouTube, LinkedIn, X
+- **Cookie-based auth** — Paste Netscape cookies from the pinned extension, sessions persist across restarts
+- **Auto keep-alive** — Scheduled jobs refresh sessions before cookies expire
+- **Content uploads** — File + caption + hashtags to multiple platforms at once
+- **Upload workflows** — JSON-defined CDP step sequences, customizable per platform
+- **Job scheduler** — Cron-based scheduling for keep-alive and uploads
+- **Dark/light themes** — System-aware with manual toggle
+- **Cross-platform** — Windows, Linux, macOS (x64 and ARM64)
 
-To run in live development mode, run `wails dev` in the project directory. This will run a Vite development
-server that will provide very fast hot reload of your frontend changes. If you want to develop in a browser
-and have access to your Go methods, there is also a dev server that runs on http://localhost:34115. Connect
-to this in your browser, and you can call your Go code from devtools.
+## Quick Start
 
-## Building
+```bash
+# Prerequisites: Go 1.23+, Node.js 24+, Wails CLI
+go install github.com/wailsapp/wails/v2/cmd/wails@latest
 
-To build a redistributable, production mode package, use `wails build`.
+# Clone and run
+git clone https://github.com/peasantsai/stargrazer.git
+cd stargrazer
+wails dev
+```
+
+## Documentation
+
+Full docs at [peasantsai.github.io/stargrazer](https://peasantsai.github.io/stargrazer).
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development guidelines.
+
+## Code of Conduct
+
+This project follows the [Contributor Covenant](CODE_OF_CONDUCT.md).
+
+## License
+
+MIT
