@@ -239,7 +239,7 @@ jobs:
         run: bash scripts/ci/generate-release-notes.sh "${{ needs.prepare.outputs.version }}" release-files changelog.md release-notes.md
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
           tag_name: ${{ needs.prepare.outputs.version }}
           body_path: release-notes.md

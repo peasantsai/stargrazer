@@ -30,13 +30,13 @@ jobs:
       - name: Frontend install and build
         working-directory: ./frontend
         run: |
-          npm ci
+          npm ci --ignore-scripts
           npm run build
 
       - name: Go test with coverage
         run: go test -tags webkit2_41 -coverprofile=coverage.out -covermode=atomic ./... || true
 
       - name: SonarCloud Scan
-        uses: SonarSource/sonarqube-scan-action@v7.1.0
+        uses: SonarSource/sonarqube-scan-action@299e4b793aaa83bf2aba7c9c14bedbb485688ec4 # v7.1.0
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}

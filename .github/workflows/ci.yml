@@ -25,7 +25,7 @@ jobs:
 
       - name: Frontend install
         working-directory: ./frontend
-        run: npm ci
+        run: npm ci --ignore-scripts
 
       - name: Frontend type check
         working-directory: ./frontend
