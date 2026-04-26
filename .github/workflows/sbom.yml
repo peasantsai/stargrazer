@@ -1,12 +1,9 @@
 name: SBOM & Vulnerability Scan
 
 on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
   schedule:
     - cron: '0 6 * * 1' # Weekly Monday 06:00 UTC
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -216,18 +213,3 @@ jobs:
             npm-audit.json
           retention-days: 90
 
-      # --- Attach SBOM to releases ---
-
-      - name: Attach SBOMs to latest release
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        run: |
-          LATEST_TAG=$(gh release list --limit 1 --json tagName -q '.[0].tagName' 2>/dev/null || echo "")
-          if [[ -n "$LATEST_TAG" ]]; then
-            gh release upload "$LATEST_TAG" \
-              sbom-go.cdx.json \
-              sbom-frontend.cdx.json \
-              sbom-combined.spdx.json \
-              --clobber || true
-          fi
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
