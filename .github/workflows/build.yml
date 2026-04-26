@@ -33,13 +33,13 @@ jobs:
   build:
     runs-on: ${{ inputs.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v6
         with:
           go-version: '1.23'
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: '24'
 
@@ -53,7 +53,7 @@ jobs:
       # Cache Chromium
       - name: Cache Chromium
         id: chromium-cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: assets/chromium-bundle
           key: ${{ inputs.chromium_cache_key }}-v2
@@ -188,7 +188,7 @@ jobs:
           fi
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ inputs.artifact_name }}
           path: dist/

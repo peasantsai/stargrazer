@@ -26,7 +26,7 @@ jobs:
       is_release: ${{ steps.resolve.outputs.is_release }}
       prev_tag: ${{ steps.resolve.outputs.prev_tag }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
@@ -143,12 +143,12 @@ jobs:
     if: needs.prepare.outputs.is_release == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
       - name: Download all artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           path: artifacts/
 
