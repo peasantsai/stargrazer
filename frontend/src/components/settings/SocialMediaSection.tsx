@@ -162,9 +162,9 @@ export function SocialMediaSection({ onBrowserStatusChange, addMessage, refreshP
         <dialog
           className="modal-overlay"
           open
-          onClick={e => { if (e.target === e.currentTarget) setInfoModal(null); }}
-          onKeyDown={e => { if (e.key === 'Escape') setInfoModal(null); }}
+          onCancel={e => { e.preventDefault(); setInfoModal(null); }}
         >
+          <button className="modal-backdrop" aria-label="Close" tabIndex={-1} onClick={() => setInfoModal(null)} />
           <div className="modal-content">
             <div className="modal-header">
               <div className="modal-title-row">

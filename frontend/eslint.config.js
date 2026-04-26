@@ -4,13 +4,11 @@ import reactHooks from 'eslint-plugin-react-hooks';
 import reactRefresh from 'eslint-plugin-react-refresh';
 import eslintConfigPrettier from 'eslint-config-prettier';
 
-export default tseslint.config(
+export default [
   { ignores: ['dist', 'wailsjs'] },
+  js.configs.recommended,
+  ...tseslint.configs.recommended,
   {
-    extends: [
-      js.configs.recommended,
-      ...tseslint.configs.recommended,
-    ],
     plugins: {
       'react-hooks': reactHooks,
       'react-refresh': reactRefresh,
@@ -23,4 +21,4 @@ export default tseslint.config(
     },
   },
   eslintConfigPrettier,
-);
+];

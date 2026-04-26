@@ -47,9 +47,9 @@ export function LogsModal({ onClose }: Props) {
     <dialog
       className="modal-overlay"
       open
-      onClick={e => { if (e.target === e.currentTarget) onClose(); }}
-      onKeyDown={e => { if (e.key === 'Escape') onClose(); }}
+      onCancel={e => { e.preventDefault(); onClose(); }}
     >
+      <button className="modal-backdrop" aria-label="Close" tabIndex={-1} onClick={onClose} />
       <div className="modal-content logs-modal">
         <div className="modal-header">
           <h3>Application Logs</h3>

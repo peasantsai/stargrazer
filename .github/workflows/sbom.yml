@@ -30,6 +30,11 @@ jobs:
         working-directory: ./frontend
         run: npm ci --ignore-scripts
 
+      - name: npm audit (frontend CVE check)
+        working-directory: ./frontend
+        run: npm audit --json > ../npm-audit.json 2>&1 || true
+        id: npm_audit
+
       # --- Syft: generate SBOMs ---
 
       - name: Install Syft
@@ -103,7 +108,32 @@ jobs:
               except FileNotFoundError:
                   return []
 
-          all_matches = load_matches("grype-go.json", "Go") + load_matches("grype-frontend.json", "Frontend")
+          def load_npm_audit(path):
+              try:
+                  with open(path) as f:
+                      data = json.load(f)
+                  results = []
+                  SEV_MAP = {"critical": "Critical", "high": "High", "moderate": "Medium", "low": "Low", "info": "Low"}
+                  for name, vuln in data.get("vulnerabilities", {}).items():
+                      sev = SEV_MAP.get(vuln.get("severity", ""), "Unknown")
+                      fix_available = vuln.get("fixAvailable", False)
+                      fixed_in = "available" if fix_available is True else ("—" if fix_available is False else str(fix_available))
+                      via = vuln.get("via", [])
+                      advisory_ids = [v.get("url", "").split("/")[-1] for v in via if isinstance(v, dict) and v.get("url")]
+                      advisory = ", ".join(filter(None, advisory_ids)) or "—"
+                      results.append({
+                          "source": "npm audit",
+                          "package": name,
+                          "version": vuln.get("range", ""),
+                          "id": advisory,
+                          "severity": sev,
+                          "fixed_in": fixed_in,
+                      })
+                  return results
+              except (FileNotFoundError, json.JSONDecodeError):
+                  return []
+
+          all_matches = load_matches("grype-go.json", "Go") + load_matches("grype-frontend.json", "Frontend") + load_npm_audit("npm-audit.json")
           all_matches.sort(key=lambda m: (SEVERITY_ORDER.get(m["severity"], 99), m["package"]))
 
           counts = {}
@@ -183,6 +213,7 @@ jobs:
             grype-go.sarif
             grype-frontend.json
             grype-frontend.sarif
+            npm-audit.json
           retention-days: 90
 
       # --- Attach SBOM to releases ---

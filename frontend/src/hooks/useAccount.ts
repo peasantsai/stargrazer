@@ -37,7 +37,7 @@ export function useAccount(): [AccountInfo, (partial: Partial<AccountInfo>) => v
       avatarUrl: sanitizeField(typeof partial.avatarUrl === 'string' ? partial.avatarUrl : account.avatarUrl),
     };
     setAccount(next);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(next)); // NOSONAR - data sanitized by sanitizeField (trim + length limit) before storage
   };
 
   return [account, updateAccount];

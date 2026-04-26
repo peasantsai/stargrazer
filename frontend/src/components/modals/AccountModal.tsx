@@ -23,9 +23,9 @@ export function AccountModal({ account, updateAccount, onClose }: Props) {
     <dialog
       className="modal-overlay"
       open
-      onClick={e => { if (e.target === e.currentTarget) onClose(); }}
-      onKeyDown={e => { if (e.key === 'Escape') onClose(); }}
+      onCancel={e => { e.preventDefault(); onClose(); }}
     >
+      <button className="modal-backdrop" aria-label="Close" tabIndex={-1} onClick={onClose} />
       <div className="modal-content">
         <div className="modal-header">
           <h3>Account Settings</h3>

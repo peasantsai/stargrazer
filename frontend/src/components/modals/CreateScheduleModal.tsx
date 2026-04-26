@@ -63,8 +63,7 @@ export function CreateScheduleModal({ platforms, onCreated, onCancel }: Props) {
     <dialog
       className="modal-overlay"
       open
-      onClick={e => { if (e.target === e.currentTarget) onCancel(); }}
-      onKeyDown={e => { if (e.key === 'Escape') onCancel(); }}
+      onCancel={e => { e.preventDefault(); onCancel(); }}
     >
       <div
         className="modal-content"
