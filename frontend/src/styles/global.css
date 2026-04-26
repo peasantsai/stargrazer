@@ -256,6 +256,8 @@ input, textarea, select { font-family: inherit; font-size: inherit; }
 .social-card.polling { border-color: var(--warning-subtle); }
 .social-card.polling::before { background: var(--warning); animation: pulse 1.5s infinite; }
 .social-card:disabled { opacity: 0.6; cursor: wait; }
+.social-card-main { flex: 1; min-width: 0; display: flex; align-items: center; gap: 12px; background: none; border: none; padding: 0; cursor: pointer; text-align: left; color: inherit; }
+.social-card-main:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
 
 .social-card-icon { width: 36px; height: 36px; min-width: 36px; display: flex; align-items: center; justify-content: center; background: var(--platform-bg); color: var(--platform-text); border-radius: 10px; padding: 7px; }
 .social-card-icon svg { width: 100%; height: 100%; }

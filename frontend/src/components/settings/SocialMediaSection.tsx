@@ -115,24 +115,27 @@ export function SocialMediaSection({ onBrowserStatusChange, addMessage, refreshP
         {platforms.map(p => {
           const colors = PLATFORM_COLORS[p.id] ?? { bg: '#333', hover: '#444', text: '#fff' };
           return (
-            <button
+            <div
               key={p.id}
-              type="button"
               className={`social-card ${p.loggedIn ? 'logged-in' : ''}`}
-              onClick={() => openModal(p)}
               style={{ '--platform-bg': colors.bg, '--platform-hover': colors.hover, '--platform-text': colors.text } as React.CSSProperties}
             >
-              <div className="social-card-icon">{PLATFORM_ICONS[p.id]}</div>
-              <div className="social-card-info">
-                <span className="social-card-name">{p.name}</span>
-                {p.loggedIn
-                  ? <span className="social-card-status connected"><span className="status-dot running" />{p.username || 'Connected'}</span>
-                  : <span className="social-card-status disconnected">Click to connect</span>}
-              </div>
+              <button type="button" className="social-card-main" onClick={() => openModal(p)}>
+                <div className="social-card-icon">{PLATFORM_ICONS[p.id]}</div>
+                <div className="social-card-info">
+                  <span className="social-card-name">{p.name}</span>
+                  {p.loggedIn
+                    ? <span className="social-card-status connected"><span className="status-dot running" />{p.username || 'Connected'}</span>
+                    : <span className="social-card-status disconnected">Click to connect</span>}
+                </div>
+                {p.loggedIn && p.lastLogin && (
+                  <div className="social-card-meta">Since {new Date(p.lastLogin).toLocaleDateString()}</div>
+                )}
+              </button>
               <div className="social-card-actions">
                 <button
                   className="social-info-btn"
-                  onClick={e => { e.stopPropagation(); setInfoModal(p); }}
+                  onClick={() => setInfoModal(p)}
                   title="Session info"
                   aria-label={`${p.name} session info`}
                 >
@@ -142,10 +145,7 @@ export function SocialMediaSection({ onBrowserStatusChange, addMessage, refreshP
                   </svg>
                 </button>
               </div>
-              {p.loggedIn && p.lastLogin && (
-                <div className="social-card-meta">Since {new Date(p.lastLogin).toLocaleDateString()}</div>
-              )}
-            </button>
+            </div>
           );
         })}
       </div>
