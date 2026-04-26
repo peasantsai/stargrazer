@@ -1,6 +1,29 @@
+# Build outputs
 build/bin
-node_modules
-frontend/dist
-
-assets\uc-*
 coverage.out
+
+# Bundled Chromium (downloaded per-platform, not committed)
+assets/uc-*
+
+# Frontend
+node_modules
+frontend/node_modules
+frontend/dist
+frontend/coverage
+frontend/package.json.md5
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.idea/
+.vscode/
+
+# Go toolchain
+*.exe
+*.test
+*.out
+
+# Wails dev server
+wails.exe
