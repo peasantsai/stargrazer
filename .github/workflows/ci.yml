@@ -6,10 +6,6 @@ on:
   pull_request:
     branches: [main]
 
-concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: false
-
 jobs:
   lint-and-test:
     runs-on: ubuntu-latest
@@ -24,6 +20,11 @@ jobs:
         with:
           node-version: '24'
 
+      - name: Install Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev pkg-config
+
       - name: Frontend install
         working-directory: ./frontend
         run: npm ci
@@ -37,155 +38,7 @@ jobs:
         run: npm run build
 
       - name: Go vet
-        run: go vet ./...
+        run: go vet -tags webkit2_41 ./...
 
       - name: Go build check
-        run: go build ./...
-
-  build:
-    needs: lint-and-test
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-latest
-            platform: linux/amd64
-            goos: linux
-            goarch: amd64
-            chromium_url: "https://github.com/ungoogled-software/ungoogled-chromium-portablelinux/releases/download/146.0.7680.177-1/ungoogled-chromium-146.0.7680.177-1-x86_64_linux.tar.xz"
-            chromium_cache_key: chromium-linux-x64
-
-          - os: ubuntu-latest
-            platform: linux/arm64
-            goos: linux
-            goarch: arm64
-            chromium_url: "https://github.com/ungoogled-software/ungoogled-chromium-portablelinux/releases/download/147.0.7727.55-1/ungoogled-chromium-147.0.7727.55-1-arm64_linux.tar.xz"
-            chromium_cache_key: chromium-linux-arm64
-
-          - os: windows-latest
-            platform: windows/amd64
-            goos: windows
-            goarch: amd64
-            chromium_url: "https://github.com/ungoogled-software/ungoogled-chromium-windows/releases/download/147.0.7727.101-1.1/ungoogled-chromium_147.0.7727.101-1.1_installer_x64.exe"
-            chromium_cache_key: chromium-windows-x64
-
-          - os: windows-latest
-            platform: windows/arm64
-            goos: windows
-            goarch: arm64
-            chromium_url: "https://github.com/ungoogled-software/ungoogled-chromium-windows/releases/download/147.0.7727.101-1.1/ungoogled-chromium_147.0.7727.101-1.1_installer_arm64.exe"
-            chromium_cache_key: chromium-windows-arm64
-
-          - os: macos-latest
-            platform: darwin/arm64
-            goos: darwin
-            goarch: arm64
-            chromium_url: "https://github.com/claudiodekker/ungoogled-chromium-macos/releases/download/130.0.6723.91-1.1/ungoogled-chromium_130.0.6723.91-1.1_arm64-macos-signed.dmg"
-            chromium_cache_key: chromium-macos-arm64
-
-          - os: macos-13
-            platform: darwin/amd64
-            goos: darwin
-            goarch: amd64
-            chromium_url: "https://github.com/claudiodekker/ungoogled-chromium-macos/releases/download/130.0.6723.91-1.1/ungoogled-chromium_130.0.6723.91-1.1_x86-64-macos-signed.dmg"
-            chromium_cache_key: chromium-macos-x64
-
-    runs-on: ${{ matrix.os }}
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-go@v5
-        with:
-          go-version: '1.23'
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '24'
-
-      - name: Install Linux dependencies
-        if: matrix.goos == 'linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev gcc-aarch64-linux-gnu pkg-config
-
-      - name: Cache Chromium
-        id: chromium-cache
-        uses: actions/cache@v4
-        with:
-          path: assets/chromium-bundle
-          key: ${{ matrix.chromium_cache_key }}-v1
-
-      - name: Download Chromium
-        if: steps.chromium-cache.outputs.cache-hit != 'true'
-        shell: bash
-        run: |
-          mkdir -p assets/chromium-bundle
-          FILENAME="/tmp/chromium-download"
-          curl -L -o "$FILENAME" "${{ matrix.chromium_url }}"
-
-          if [[ "${{ matrix.goos }}" == "linux" ]]; then
-            mkdir -p /tmp/chromium-extract
-            tar xf "$FILENAME" -C /tmp/chromium-extract 2>/dev/null || tar xJf "$FILENAME" -C /tmp/chromium-extract 2>/dev/null
-            CHROME_DIR=$(find /tmp/chromium-extract -name "chrome" -type f -exec dirname {} \; | head -1)
-            if [ -n "$CHROME_DIR" ]; then
-              cp -R "$CHROME_DIR"/* assets/chromium-bundle/
-            else
-              cp -R /tmp/chromium-extract/*/* assets/chromium-bundle/ 2>/dev/null || cp -R /tmp/chromium-extract/* assets/chromium-bundle/
-            fi
-          elif [[ "${{ matrix.goos }}" == "darwin" ]]; then
-            hdiutil attach "$FILENAME" -mountpoint /tmp/chromium-dmg -nobrowse
-            cp -R /tmp/chromium-dmg/Chromium.app assets/chromium-bundle/
-            hdiutil detach /tmp/chromium-dmg
-          elif [[ "${{ matrix.goos }}" == "windows" ]]; then
-            7z x "$FILENAME" -o"$GITHUB_WORKSPACE/assets/chromium-bundle" -y || true
-          fi
-
-      - name: Clean Chromium bundle
-        if: steps.chromium-cache.outputs.cache-hit != 'true'
-        shell: bash
-        run: |
-          cd assets/chromium-bundle
-          rm -rf swiftshader VisualElements default_apps MEIPreload Dictionaries
-          rm -f chrome_200_percent.pak notification_helper* elevation_service* chrome_proxy* chrome_pwa_launcher* chrome_wer*
-          rm -f *.debug *.pdb
-          if [ -d locales ]; then
-            find locales -type f ! -name 'en-US.pak' -delete 2>/dev/null || true
-          fi
-
-      - name: Install Wails
-        run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
-
-      - name: Build Stargrazer
-        shell: bash
-        env:
-          CGO_ENABLED: 1
-        run: |
-          # Set cross-compiler for Linux ARM64
-          if [[ "${{ matrix.platform }}" == "linux/arm64" ]]; then
-            export CC=aarch64-linux-gnu-gcc
-          fi
-
-          TAGS=""
-          if [[ "${{ matrix.goos }}" == "linux" ]]; then
-            TAGS="-tags webkit2_41"
-          fi
-
-          if [[ "${{ matrix.goos }}" == "windows" ]]; then
-            wails build -platform ${{ matrix.platform }} -o stargrazer.exe $TAGS
-          else
-            wails build -platform ${{ matrix.platform }} -o stargrazer $TAGS
-          fi
-
-      - name: Bundle Chromium with build
-        shell: bash
-        run: |
-          mkdir -p build/bin/assets/chromium-bundle
-          cp -R assets/chromium-bundle/* build/bin/assets/chromium-bundle/ 2>/dev/null || true
-          cp -R assets/cookies-extension build/bin/assets/cookies-extension 2>/dev/null || true
-
-      - name: Upload build artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: stargrazer-${{ matrix.goos }}-${{ matrix.goarch }}
-          path: build/bin/
-          retention-days: 7
+        run: go build -tags webkit2_41 ./...
