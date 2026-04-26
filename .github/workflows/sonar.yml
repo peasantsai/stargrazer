@@ -27,11 +27,18 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev pkg-config
 
-      - name: Frontend install and build
+      - name: Frontend install
         working-directory: ./frontend
-        run: |
-          npm ci --ignore-scripts
-          npm run build
+        run: npm ci --ignore-scripts
+
+      - name: Frontend test with coverage
+        working-directory: ./frontend
+        # Generate lcov.info at frontend/coverage/lcov.info for SonarCloud
+        run: npm test -- --coverage || true
+
+      - name: Frontend build (type-check)
+        working-directory: ./frontend
+        run: npx tsc --noEmit
 
       - name: Go test with coverage
         run: go test -tags webkit2_41 -coverprofile=coverage.out -covermode=atomic ./... || true

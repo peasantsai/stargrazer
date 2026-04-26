@@ -33,18 +33,18 @@ jobs:
       # --- Syft: generate SBOMs ---
 
       - name: Install Syft
-        uses: anchore/sbom-action/download-syft@fc46e51fd3cb168ffb36c6d1915723c47db58abb # v0.17.7
+        uses: anchore/sbom-action/download-syft@v0
 
       - name: Generate Go SBOM (CycloneDX)
-        # go-module-file cataloger only reads go.mod/go.sum — avoids false positives
-        # from the go-module-binary cataloger detecting old Go versions in pre-compiled binaries.
-        run: syft dir:. --select-catalogers go-module-file -o cyclonedx-json=sbom-go.cdx.json
+        # Use default catalogers — .grype.yaml suppresses stdlib@go1.19.3 false positives
+        # that the go-module-binary cataloger can detect from pre-compiled runner binaries.
+        run: syft scan dir:. -o cyclonedx-json=sbom-go.cdx.json
 
       - name: Generate Frontend SBOM (CycloneDX)
-        run: syft dir:frontend --select-catalogers javascript -o cyclonedx-json=sbom-frontend.cdx.json
+        run: syft scan dir:frontend -o cyclonedx-json=sbom-frontend.cdx.json
 
       - name: Generate combined SBOM (SPDX)
-        run: syft dir:. -o spdx-json=sbom-combined.spdx.json
+        run: syft scan dir:. -o spdx-json=sbom-combined.spdx.json
 
       # --- Grype: vulnerability scan ---
 
@@ -56,7 +56,8 @@ jobs:
           grype sbom:sbom-go.cdx.json \
             --config .grype.yaml \
             --output json=grype-go.json \
-            --output sarif=grype-go.sarif
+            --output sarif=grype-go.sarif \
+            --fail-on critical
         continue-on-error: true
         id: grype_go
 
@@ -65,7 +66,8 @@ jobs:
           grype sbom:sbom-frontend.cdx.json \
             --config .grype.yaml \
             --output json=grype-frontend.json \
-            --output sarif=grype-frontend.sarif
+            --output sarif=grype-frontend.sarif \
+            --fail-on critical
         continue-on-error: true
         id: grype_frontend
 
@@ -146,7 +148,7 @@ jobs:
 
       - name: Upload Go SARIF to GitHub Security
         if: always()
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: grype-go.sarif
           category: grype-go
@@ -154,7 +156,7 @@ jobs:
 
       - name: Upload Frontend SARIF to GitHub Security
         if: always()
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: grype-frontend.sarif
           category: grype-frontend
