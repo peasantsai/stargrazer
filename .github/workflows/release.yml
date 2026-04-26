@@ -226,72 +226,10 @@ jobs:
           ls -lh release-files/ || echo "No release files found"
 
       - name: Generate changelog
-        run: |
-          PREV_TAG="${{ needs.prepare.outputs.prev_tag }}"
-
-          echo "## Changelog" > changelog.md
-          echo "" >> changelog.md
-
-          if [ -n "$PREV_TAG" ]; then
-            echo "Changes since \`$PREV_TAG\`:" >> changelog.md
-            echo "" >> changelog.md
-            git log "$PREV_TAG"..HEAD --pretty=format:"- %s (\`%h\`)" --no-merges >> changelog.md
-          else
-            echo "Initial release." >> changelog.md
-            echo "" >> changelog.md
-            git log --pretty=format:"- %s (\`%h\`)" --no-merges >> changelog.md
-          fi
-          echo "" >> changelog.md
+        run: bash scripts/ci/generate-changelog.sh "${{ needs.prepare.outputs.prev_tag }}" changelog.md
 
       - name: Generate release notes
-        run: |
-          VERSION="${{ needs.prepare.outputs.version }}"
-
-          cat > release-notes.md << HEADER
-          ## Stargrazer ${VERSION}
-
-          ### Downloads
-
-          | Platform | Architecture | File | Size |
-          |----------|-------------|------|------|
-          HEADER
-
-          for f in release-files/*; do
-            [ ! -f "$f" ] && continue
-            fname=$(basename "$f")
-            size=$(du -h "$f" | cut -f1)
-            case "$fname" in
-              *linux-amd64*.tar.gz)       echo "| Linux | x86_64 | \`$fname\` | $size |" >> release-notes.md ;;
-              *linux-arm64*.tar.gz)       echo "| Linux | ARM64 | \`$fname\` | $size |" >> release-notes.md ;;
-              *windows-amd64*setup*)      echo "| Windows | x64 (Installer) | \`$fname\` | $size |" >> release-notes.md ;;
-              *windows-amd64*.zip)        echo "| Windows | x64 (Portable) | \`$fname\` | $size |" >> release-notes.md ;;
-              *windows-arm64*setup*)      echo "| Windows | ARM64 (Installer) | \`$fname\` | $size |" >> release-notes.md ;;
-              *windows-arm64*.zip)        echo "| Windows | ARM64 (Portable) | \`$fname\` | $size |" >> release-notes.md ;;
-              *macos-arm64*)              echo "| macOS | Apple Silicon | \`$fname\` | $size |" >> release-notes.md ;;
-              *macos-amd64*)              echo "| macOS | Intel | \`$fname\` | $size |" >> release-notes.md ;;
-            esac
-          done
-
-          echo "" >> release-notes.md
-          cat changelog.md >> release-notes.md
-
-          cat >> release-notes.md << FOOTER
-
-          ### What's included
-          - Bundled Ungoogled Chromium with stealth configuration
-          - Chrome DevTools Protocol (CDP) automation
-          - Social media session management (6 platforms)
-          - Cookie-based auth with auto keep-alive scheduler
-          - Content upload workflows with scheduling
-          - Dark and light themes
-
-          ### Requirements
-          - Windows 10+ / macOS 12+ / Linux (glibc 2.31+)
-          - WebView2 runtime (Windows, auto-installed)
-
-          ---
-          *Built with [Wails v2](https://wails.io) + Go + React + TypeScript*
-          FOOTER
+        run: bash scripts/ci/generate-release-notes.sh "${{ needs.prepare.outputs.version }}" release-files changelog.md release-notes.md
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
