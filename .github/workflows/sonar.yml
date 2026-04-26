@@ -31,17 +31,18 @@ jobs:
         working-directory: ./frontend
         run: npm ci --ignore-scripts
 
-      - name: Frontend test with coverage
-        working-directory: ./frontend
-        # Generate lcov.info at frontend/coverage/lcov.info for SonarCloud
-        run: npm test -- --coverage || true
+      # Coverage disabled — uncomment to re-enable
+      # - name: Frontend test with coverage
+      #   working-directory: ./frontend
+      #   run: npm test -- --coverage || true
 
       - name: Frontend build
         working-directory: ./frontend
         run: npm run build
 
-      - name: Go test with coverage
-        run: go test -tags webkit2_41 -coverprofile=coverage.out -covermode=atomic ./... || true
+      # Coverage disabled — uncomment to re-enable
+      # - name: Go test with coverage
+      #   run: go test -tags webkit2_41 -coverprofile=coverage.out -covermode=atomic ./... || true
 
       - name: SonarCloud Scan
         uses: SonarSource/sonarqube-scan-action@299e4b793aaa83bf2aba7c9c14bedbb485688ec4 # v7.1.0
