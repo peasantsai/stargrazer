@@ -34,19 +34,9 @@ jobs:
           npm run build
 
       - name: Go test with coverage
-        run: |
-          go test -tags webkit2_41 -coverprofile=coverage.out -covermode=atomic ./... || true
+        run: go test -tags webkit2_41 -coverprofile=coverage.out -covermode=atomic ./... || true
 
       - name: SonarCloud Scan
-        uses: SonarSource/sonarqube-scan-action@v5
+        uses: SonarSource/sonarqube-scan-action@v7.1.0
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        with:
-          args: >
-            -Dsonar.projectKey=peasantsai_stargrazer
-            -Dsonar.organization=peasantsai
-            -Dsonar.sources=.
-            -Dsonar.exclusions=**/node_modules/**,**/dist/**,**/build/**,**/assets/uc-*/**,**/wailsjs/**
-            -Dsonar.go.coverage.reportPaths=coverage.out
-            -Dsonar.javascript.lcov.reportPaths=frontend/coverage/lcov.info
-            -Dsonar.qualitygate.wait=true
