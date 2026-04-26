@@ -20,7 +20,7 @@ permissions:
 
 jobs:
   prepare:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     outputs:
       version: ${{ steps.resolve.outputs.version }}
       is_release: ${{ steps.resolve.outputs.is_release }}
@@ -79,7 +79,7 @@ jobs:
     needs: prepare
     uses: ./.github/workflows/build.yml
     with:
-      os: ubuntu-latest
+      os: ubuntu-24.04
       goos: linux
       goarch: amd64
       platform: linux/amd64
@@ -92,7 +92,7 @@ jobs:
     needs: prepare
     uses: ./.github/workflows/build.yml
     with:
-      os: windows-latest
+      os: windows-2025
       goos: windows
       goarch: amd64
       platform: windows/amd64
@@ -105,7 +105,7 @@ jobs:
     needs: prepare
     uses: ./.github/workflows/build.yml
     with:
-      os: windows-latest
+      os: windows-11-arm
       goos: windows
       goarch: arm64
       platform: windows/arm64
@@ -118,7 +118,7 @@ jobs:
     needs: prepare
     uses: ./.github/workflows/build.yml
     with:
-      os: macos-latest
+      os: macos-15
       goos: darwin
       goarch: arm64
       platform: darwin/arm64
@@ -141,7 +141,7 @@ jobs:
   publish:
     needs: [prepare, build-linux-amd64, build-windows-amd64, build-windows-arm64, build-macos-arm64]
     if: needs.prepare.outputs.is_release == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v6
         with:
