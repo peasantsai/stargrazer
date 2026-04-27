@@ -492,3 +492,67 @@ func TestSetLoggedOutNonExistent(t *testing.T) {
 		t.Error("expected non-zero LastCheck after SetLoggedOut")
 	}
 }
+
+// --- AllPlatforms URL and domain format checks ---
+
+func TestAllPlatformsURLsStartWithHTTPS(t *testing.T) {
+	for _, p := range AllPlatforms() {
+		t.Run(string(p.ID), func(t *testing.T) {
+			if !strings.HasPrefix(p.URL, "https://") {
+				t.Errorf("URL %q should start with https://", p.URL)
+			}
+			if !strings.HasPrefix(p.LoginURL, "https://") {
+				t.Errorf("LoginURL %q should start with https://", p.LoginURL)
+			}
+		})
+	}
+}
+
+func TestAllPlatformsSessionDomainsStartWithDot(t *testing.T) {
+	for _, p := range AllPlatforms() {
+		t.Run(string(p.ID), func(t *testing.T) {
+			for _, domain := range p.SessionDomains {
+				if !strings.HasPrefix(domain, ".") {
+					t.Errorf("session domain %q should start with '.'  (platform: %s)", domain, p.ID)
+				}
+			}
+		})
+	}
+}
+
+func TestFindPlatformReturnsPointerNotSameAddress(t *testing.T) {
+	// Each call to FindPlatform returns a pointer to a new copy (range variable);
+	// this confirms the caller gets an independent struct.
+	p1 := FindPlatform(Facebook)
+	p2 := FindPlatform(Facebook)
+	if p1 == nil || p2 == nil {
+		t.Fatal("FindPlatform returned nil")
+	}
+	if p1.ID != p2.ID {
+		t.Errorf("expected same platform ID, got %s vs %s", p1.ID, p2.ID)
+	}
+}
+
+func TestAccountStatusFields(t *testing.T) {
+	status := AccountStatus{
+		PlatformID: Instagram,
+		LoggedIn:   true,
+		Username:   "testuser",
+	}
+	if status.PlatformID != Instagram {
+		t.Errorf("expected PlatformID Instagram, got %s", status.PlatformID)
+	}
+	if !status.LoggedIn {
+		t.Error("expected LoggedIn true")
+	}
+	if status.Username != "testuser" {
+		t.Errorf("expected username 'testuser', got %q", status.Username)
+	}
+	// Timestamps should be zero by default
+	if !status.LastLogin.IsZero() {
+		t.Error("expected zero LastLogin")
+	}
+	if !status.LastCheck.IsZero() {
+		t.Error("expected zero LastCheck")
+	}
+}

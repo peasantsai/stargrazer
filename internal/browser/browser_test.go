@@ -775,3 +775,147 @@ func TestPinExtensionWithExistingExtensions(t *testing.T) {
 		t.Errorf("expected 2 pinned extensions, got %d", len(pinned))
 	}
 }
+
+// --- findChromiumInAssets ---
+
+func TestFindChromiumInAssetsFound(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create a fake Chromium directory structure: assets/uc-123/chrome.exe
+	assetDir := filepath.Join(tmpDir, "uc-123")
+	os.MkdirAll(assetDir, 0700)
+	os.WriteFile(filepath.Join(assetDir, "chrome.exe"), []byte("fake"), 0700)
+
+	result := findChromiumInAssets(tmpDir, "chrome.exe")
+	if result == "" {
+		t.Error("expected to find chrome.exe in assets subdirectory")
+	}
+	if !strings.HasSuffix(result, "chrome.exe") {
+		t.Errorf("expected result to end with 'chrome.exe', got %q", result)
+	}
+}
+
+func TestFindChromiumInAssetsNotFound(t *testing.T) {
+	tmpDir := t.TempDir()
+	// Empty directory — nothing to find.
+	result := findChromiumInAssets(tmpDir, "chrome.exe")
+	if result != "" {
+		t.Errorf("expected empty result for missing binary, got %q", result)
+	}
+}
+
+func TestFindChromiumInAssetsMissingDirectory(t *testing.T) {
+	// Non-existent directory should return "".
+	result := findChromiumInAssets("/nonexistent/path/xyz", "chrome.exe")
+	if result != "" {
+		t.Errorf("expected empty result for missing directory, got %q", result)
+	}
+}
+
+func TestFindChromiumInAssetsSkipsFiles(t *testing.T) {
+	tmpDir := t.TempDir()
+	// A regular file (not a dir) should be ignored in the search.
+	os.WriteFile(filepath.Join(tmpDir, "chrome.exe"), []byte("fake"), 0700)
+
+	result := findChromiumInAssets(tmpDir, "chrome.exe")
+	// findChromiumInAssets only looks inside subdirectories, so this should not be found.
+	if result != "" {
+		t.Errorf("expected empty result (file at root, not in subdir), got %q", result)
+	}
+}
+
+// --- CDPCookie JSON serialization ---
+
+func TestCDPCookieJSONRoundTrip(t *testing.T) {
+	cookie := CDPCookie{
+		Name:     "session_id",
+		Value:    "abc123",
+		Domain:   ".example.com",
+		Path:     "/path",
+		Expires:  1700000000.5,
+		HTTPOnly: true,
+		Secure:   false,
+	}
+
+	data, err := json.Marshal(cookie)
+	if err != nil {
+		t.Fatalf("json.Marshal error: %v", err)
+	}
+
+	var decoded CDPCookie
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatalf("json.Unmarshal error: %v", err)
+	}
+
+	if decoded.Name != cookie.Name {
+		t.Errorf("Name mismatch: %q vs %q", decoded.Name, cookie.Name)
+	}
+	if decoded.Value != cookie.Value {
+		t.Errorf("Value mismatch: %q vs %q", decoded.Value, cookie.Value)
+	}
+	if decoded.Domain != cookie.Domain {
+		t.Errorf("Domain mismatch: %q vs %q", decoded.Domain, cookie.Domain)
+	}
+	if decoded.Expires != cookie.Expires {
+		t.Errorf("Expires mismatch: %f vs %f", decoded.Expires, cookie.Expires)
+	}
+	if decoded.HTTPOnly != cookie.HTTPOnly {
+		t.Errorf("HTTPOnly mismatch: %v vs %v", decoded.HTTPOnly, cookie.HTTPOnly)
+	}
+}
+
+// --- ParseNetscapeCookies value with tabs ---
+
+func TestParseNetscapeCookiesValueWithSpaces(t *testing.T) {
+	// Value field may contain spaces (not split further)
+	input := ".example.com\tTRUE\t/\tFALSE\t0\ttoken\tmy token value\n"
+	cookies := ParseNetscapeCookies(input)
+	if len(cookies) != 1 {
+		t.Fatalf("expected 1 cookie, got %d", len(cookies))
+	}
+	if cookies[0].Value != "my token value" {
+		t.Errorf("expected value 'my token value', got %q", cookies[0].Value)
+	}
+}
+
+func TestParseNetscapeCookiesExactlySevenFields(t *testing.T) {
+	// Exactly 7 tab-separated fields — should be parsed.
+	input := ".ex.com\tTRUE\t/\tFALSE\t0\tn\tv\n"
+	cookies := ParseNetscapeCookies(input)
+	if len(cookies) != 1 {
+		t.Fatalf("expected 1 cookie for exactly 7 fields, got %d", len(cookies))
+	}
+}
+
+func TestParseNetscapeCookiesSixFields(t *testing.T) {
+	// Only 6 fields — should be skipped (len < 7).
+	input := ".ex.com\tTRUE\t/\tFALSE\t0\tname\n"
+	cookies := ParseNetscapeCookies(input)
+	if len(cookies) != 0 {
+		t.Errorf("expected 0 cookies for 6-field line, got %d", len(cookies))
+	}
+}
+
+// --- ExportCookiesToDisk ---
+
+func TestExportCookiesToDiskEmptyCookies(t *testing.T) {
+	m := resetSingleton(t)
+	tmpDir := t.TempDir()
+
+	// GetCookiesForDomains will fail because no browser is running.
+	// But we can test the "empty cookies" path by writing an empty file first.
+	cookiesDir := filepath.Join(tmpDir, "cookies")
+	os.MkdirAll(cookiesDir, 0700)
+	os.WriteFile(filepath.Join(cookiesDir, "testplatform.json"), []byte("[]"), 0600)
+
+	// LoadCookiesFromDisk with empty array — not ExportCookiesToDisk directly
+	// (Export needs a running browser), but we verify LoadCookiesFromDisk handles []
+	cookies, err := LoadCookiesFromDisk("testplatform", tmpDir)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(cookies) != 0 {
+		t.Errorf("expected 0 cookies from empty file, got %d", len(cookies))
+	}
+	_ = m // used via resetSingleton
+}

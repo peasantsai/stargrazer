@@ -2,8 +2,10 @@ package logger
 
 import (
 	"encoding/json"
+	"strings"
 	"sync"
 	"testing"
+	"time"
 )
 
 // resetLogger resets the singleton so each test starts fresh.
@@ -221,5 +223,81 @@ func TestGetAllReturnsNilWhenEmpty(t *testing.T) {
 	entries := GetAll()
 	if entries != nil {
 		t.Errorf("expected nil for empty buffer, got %d entries", len(entries))
+	}
+}
+
+func TestLevelConstants(t *testing.T) {
+	tests := []struct {
+		level    Level
+		expected string
+	}{
+		{LevelInfo, "info"},
+		{LevelWarn, "warn"},
+		{LevelError, "error"},
+		{LevelDebug, "debug"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.expected, func(t *testing.T) {
+			if string(tc.level) != tc.expected {
+				t.Errorf("expected %q, got %q", tc.expected, string(tc.level))
+			}
+		})
+	}
+}
+
+func TestLogEntryHasTimestamp(t *testing.T) {
+	resetLogger()
+	defer resetLogger()
+
+	before := time.Now()
+	Info("src", "timestamp test")
+	after := time.Now()
+
+	entries := GetAll()
+	if len(entries) != 1 {
+		t.Fatalf("expected 1 entry, got %d", len(entries))
+	}
+	ts := entries[0].Timestamp
+	if ts.Before(before) || ts.After(after) {
+		t.Errorf("timestamp %v not in expected range [%v, %v]", ts, before, after)
+	}
+}
+
+func TestExportContainsAllFields(t *testing.T) {
+	resetLogger()
+	defer resetLogger()
+
+	Info("testsource", "testmessage")
+
+	data := Export()
+	s := string(data)
+
+	for _, want := range []string{"testsource", "testmessage", "info", "timestamp"} {
+		if !strings.Contains(s, want) {
+			t.Errorf("export JSON missing field/value %q; got: %s", want, s)
+		}
+	}
+}
+
+func TestMaxEntriesConstant(t *testing.T) {
+	if maxEntries != 1000 {
+		t.Errorf("expected maxEntries 1000, got %d", maxEntries)
+	}
+}
+
+func TestClearThenAddWorks(t *testing.T) {
+	resetLogger()
+	defer resetLogger()
+
+	Info("src", "before clear")
+	Clear()
+	Info("src", "after clear")
+
+	entries := GetAll()
+	if len(entries) != 1 {
+		t.Fatalf("expected 1 entry after clear+add, got %d", len(entries))
+	}
+	if entries[0].Message != "after clear" {
+		t.Errorf("expected 'after clear', got %q", entries[0].Message)
 	}
 }

@@ -1,8 +1,10 @@
 package config
 
 import (
+	"os"
 	"testing"
 
+	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 )
 
@@ -357,5 +359,124 @@ func TestUpdateMultipleTimes(t *testing.T) {
 	// Other fields should still be defaults
 	if cfg.Window.Title != "Stargrazer" {
 		t.Errorf("expected default title, got %q", cfg.Window.Title)
+	}
+}
+
+func TestInitWithValidYAMLFile(t *testing.T) {
+	// Save / restore singleton state.
+	mu.Lock()
+	savedInstance := instance
+	savedV := v
+	mu.Unlock()
+	defer func() {
+		mu.Lock()
+		instance = savedInstance
+		v = savedV
+		mu.Unlock()
+		// Restore pflag so other tests are not affected.
+		pflag.CommandLine = pflag.NewFlagSet(os.Args[0], pflag.ContinueOnError)
+	}()
+
+	// Reset pflag to avoid "flag redefined" panic on repeated Init() calls.
+	pflag.CommandLine = pflag.NewFlagSet(os.Args[0], pflag.ContinueOnError)
+
+	tmpDir := t.TempDir()
+	yaml := "browser:\n  cdp_port: 7777\n  headless: true\n  window_width: 800\n  window_height: 600\nwindow:\n  title: \"Test App\"\n"
+	if err := os.WriteFile(tmpDir+"/config.yaml", []byte(yaml), 0600); err != nil {
+		t.Fatalf("failed to write test config.yaml: %v", err)
+	}
+
+	origDir, _ := os.Getwd()
+	os.Chdir(tmpDir)
+	defer os.Chdir(origDir)
+
+	if err := Init(); err != nil {
+		t.Fatalf("Init() error: %v", err)
+	}
+
+	cfg := Get()
+	if cfg.Browser.CDPPort != 7777 {
+		t.Errorf("expected CDPPort 7777 from YAML, got %d", cfg.Browser.CDPPort)
+	}
+	if !cfg.Browser.Headless {
+		t.Error("expected Headless true from YAML")
+	}
+	if cfg.Browser.WindowWidth != 800 {
+		t.Errorf("expected WindowWidth 800 from YAML, got %d", cfg.Browser.WindowWidth)
+	}
+	if cfg.Window.Title != "Test App" {
+		t.Errorf("expected title 'Test App' from YAML, got %q", cfg.Window.Title)
+	}
+}
+
+func TestInitWithPartialYAMLPreservesDefaults(t *testing.T) {
+	mu.Lock()
+	savedInstance := instance
+	savedV := v
+	mu.Unlock()
+	defer func() {
+		mu.Lock()
+		instance = savedInstance
+		v = savedV
+		mu.Unlock()
+		pflag.CommandLine = pflag.NewFlagSet(os.Args[0], pflag.ContinueOnError)
+	}()
+
+	// Reset pflag to avoid "flag redefined" panic on repeated Init() calls.
+	pflag.CommandLine = pflag.NewFlagSet(os.Args[0], pflag.ContinueOnError)
+
+	tmpDir := t.TempDir()
+	yaml := "browser:\n  cdp_port: 4321\n"
+	if err := os.WriteFile(tmpDir+"/config.yaml", []byte(yaml), 0600); err != nil {
+		t.Fatalf("failed to write test config.yaml: %v", err)
+	}
+
+	origDir, _ := os.Getwd()
+	os.Chdir(tmpDir)
+	defer os.Chdir(origDir)
+
+	if err := Init(); err != nil {
+		t.Fatalf("Init() error: %v", err)
+	}
+
+	cfg := Get()
+	if cfg.Browser.CDPPort != 4321 {
+		t.Errorf("expected CDPPort 4321, got %d", cfg.Browser.CDPPort)
+	}
+	if cfg.Window.Title != "Stargrazer" {
+		t.Errorf("expected default title 'Stargrazer', got %q", cfg.Window.Title)
+	}
+	if !cfg.Scheduler.Enabled {
+		t.Error("expected Scheduler.Enabled true (default preserved)")
+	}
+}
+
+func TestBrowserConfigStructFields(t *testing.T) {
+	cfg := BrowserConfig{
+		ChromiumPath: "/path/chrome",
+		CDPPort:      9222,
+		Headless:     true,
+		UserDataDir:  "/data",
+		WindowWidth:  1920,
+		WindowHeight: 1080,
+		ExtraFlags:   []string{"--flag"},
+	}
+	if cfg.ChromiumPath != "/path/chrome" {
+		t.Error("ChromiumPath field broken")
+	}
+	if cfg.CDPPort != 9222 {
+		t.Error("CDPPort field broken")
+	}
+	if !cfg.Headless {
+		t.Error("Headless field broken")
+	}
+	if cfg.UserDataDir != "/data" {
+		t.Error("UserDataDir field broken")
+	}
+	if cfg.WindowWidth != 1920 || cfg.WindowHeight != 1080 {
+		t.Error("WindowWidth/WindowHeight field broken")
+	}
+	if len(cfg.ExtraFlags) != 1 || cfg.ExtraFlags[0] != "--flag" {
+		t.Error("ExtraFlags field broken")
 	}
 }

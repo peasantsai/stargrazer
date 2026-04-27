@@ -36,6 +36,7 @@ nav:
   - User Guide:
     - Chat & Uploads: guide/chat-uploads.md
     - Schedules: guide/schedules.md
+    - Automations: guide/automations.md
     - Settings: guide/settings.md
     - Themes: guide/themes.md
   - Architecture:
