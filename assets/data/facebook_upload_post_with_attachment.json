@@ -1,0 +1,329 @@
+{
+    "title": "facebook upload post with attachment",
+    "steps": [
+        {
+            "type": "setViewport",
+            "width": 1249,
+            "height": 771,
+            "deviceScaleFactor": 1,
+            "isMobile": false,
+            "hasTouch": false,
+            "isLandscape": false
+        },
+        {
+            "type": "navigate",
+            "url": "https://www.facebook.com/",
+            "assertedEvents": [
+                {
+                    "type": "navigation",
+                    "url": "https://www.facebook.com/",
+                    "title": "Facebook"
+                }
+            ]
+        },
+        {
+            "type": "click",
+            "target": "main",
+            "selectors": [
+                [
+                    "div.x78zum5 > div > div.xod5an3 div.x1ejq31n span"
+                ],
+                [
+                    "xpath///*[@id=\"mount_0_0_yt\"]/div/div[1]/div/div[3]/div/div/div[1]/div[1]/div/div[2]/div/div/div/div[2]/div/div[2]/div/div/div/div/div[1]/div[1]/span"
+                ],
+                [
+                    "pierce/div.x78zum5 > div > div.xod5an3 div.x1ejq31n span"
+                ],
+                [
+                    "text/Was machst du"
+                ]
+            ],
+            "offsetY": 8.390625,
+            "offsetX": 64.5
+        },
+        {
+            "type": "keyDown",
+            "target": "main",
+            "key": "<"
+        },
+        {
+            "type": "keyUp",
+            "key": "<",
+            "target": "main"
+        },
+        {
+            "type": "change",
+            "value": "<text-ge",
+            "selectors": [
+                [
+                    "aria/Was machst du gerade, Daniyal?[role=\"textbox\"]"
+                ],
+                [
+                    "div.x1ed109x > div.x1iyjqo2 > div > div > div.xzsf02u"
+                ],
+                [
+                    "xpath///*[@id=\"mount_0_0_yt\"]/div/div[1]/div/div[4]/div/div/div[1]/div/div[2]/div/div/div/form/div/div[1]/div/div/div/div[2]/div[1]/div[1]/div[1]/div/div/div[1]"
+                ],
+                [
+                    "pierce/div.x1ed109x > div.x1iyjqo2 > div > div > div.xzsf02u"
+                ]
+            ],
+            "target": "main"
+        },
+        {
+            "type": "keyDown",
+            "target": "main",
+            "key": "Backspace"
+        },
+        {
+            "type": "keyUp",
+            "key": "Backspace",
+            "target": "main"
+        },
+        {
+            "type": "change",
+            "value": "<text-gpe",
+            "selectors": [
+                [
+                    "aria/Was machst du gerade, Daniyal?[role=\"textbox\"]"
+                ],
+                [
+                    "div.x1ed109x > div.x1iyjqo2 > div > div > div.xzsf02u"
+                ],
+                [
+                    "xpath///*[@id=\"mount_0_0_yt\"]/div/div[1]/div/div[4]/div/div/div[1]/div/div[2]/div/div/div/form/div/div[1]/div/div/div/div[2]/div[1]/div[1]/div[1]/div/div/div[1]"
+                ],
+                [
+                    "pierce/div.x1ed109x > div.x1iyjqo2 > div > div > div.xzsf02u"
+                ]
+            ],
+            "target": "main"
+        },
+        {
+            "type": "keyDown",
+            "target": "main",
+            "key": "Backspace"
+        },
+        {
+            "type": "keyUp",
+            "key": "Backspace",
+            "target": "main"
+        },
+        {
+            "type": "keyDown",
+            "target": "main",
+            "key": "Backspace"
+        },
+        {
+            "type": "keyUp",
+            "key": "Backspace",
+            "target": "main"
+        },
+        {
+            "type": "change",
+            "value": "<text-goes-j",
+            "selectors": [
+                [
+                    "aria/Was machst du gerade, Daniyal?[role=\"textbox\"]"
+                ],
+                [
+                    "div.x1ed109x > div.x1iyjqo2 > div > div > div.xzsf02u"
+                ],
+                [
+                    "xpath///*[@id=\"mount_0_0_yt\"]/div/div[1]/div/div[4]/div/div/div[1]/div/div[2]/div/div/div/form/div/div[1]/div/div/div/div[2]/div[1]/div[1]/div[1]/div/div/div[1]"
+                ],
+                [
+                    "pierce/div.x1ed109x > div.x1iyjqo2 > div > div > div.xzsf02u"
+                ]
+            ],
+            "target": "main"
+        },
+        {
+            "type": "keyDown",
+            "target": "main",
+            "key": "Backspace"
+        },
+        {
+            "type": "keyUp",
+            "key": "Backspace",
+            "target": "main"
+        },
+        {
+            "type": "change",
+            "value": "<text-goes-here>",
+            "selectors": [
+                [
+                    "aria/Was machst du gerade, Daniyal?[role=\"textbox\"]"
+                ],
+                [
+                    "div.x1ed109x > div.x1iyjqo2 > div > div > div.xzsf02u"
+                ],
+                [
+                    "xpath///*[@id=\"mount_0_0_yt\"]/div/div[1]/div/div[4]/div/div/div[1]/div/div[2]/div/div/div/form/div/div[1]/div/div/div/div[2]/div[1]/div[1]/div[1]/div/div/div[1]"
+                ],
+                [
+                    "pierce/div.x1ed109x > div.x1iyjqo2 > div > div > div.xzsf02u"
+                ]
+            ],
+            "target": "main"
+        },
+        {
+            "type": "click",
+            "target": "main",
+            "selectors": [
+                [
+                    "div.x1jx94hy > div:nth-of-type(2) > div > div:nth-of-type(1) img"
+                ],
+                [
+                    "xpath///*[@id=\"mount_0_0_yt\"]/div/div[1]/div/div[4]/div/div/div[1]/div/div[2]/div/div/div/form/div/div[1]/div/div/div/div[3]/div[1]/div[2]/div/div[1]/div/span/div/div/div[1]/div/div/div[1]/img"
+                ],
+                [
+                    "pierce/div.x1jx94hy > div:nth-of-type(2) > div > div:nth-of-type(1) img"
+                ]
+            ],
+            "offsetY": 8.5,
+            "offsetX": 11.5
+        },
+        {
+            "type": "change",
+            "value": "C:\\fakepath\\Gemini_Generated_Image_gm9v9agm9v9agm9v.png",
+            "selectors": [
+                [
+                    "form > div input"
+                ],
+                [
+                    "xpath///*[@id=\"mount_0_0_yt\"]/div/div[1]/div/div[4]/div/div/div[1]/div/div[2]/div/div/div/form/div/div[1]/div/div/div/div[3]/div[1]/div[2]/div/div[1]/input"
+                ],
+                [
+                    "pierce/form > div input"
+                ],
+                [
+                    "text/C:\\fakepath\\Gemini_Generated_Image_gm9v9agm9v9agm9v.png"
+                ]
+            ],
+            "target": "main"
+        },
+        {
+            "type": "click",
+            "target": "main",
+            "selectors": [
+                [
+                    "div.x1l90r2v div.html-div"
+                ],
+                [
+                    "xpath///*[@id=\"mount_0_0_yt\"]/div/div[1]/div/div[4]/div/div/div[1]/div/div[2]/div/div/div/form/div/div[1]/div/div/div/div[3]/div[2]/div/div/div/div[1]"
+                ],
+                [
+                    "pierce/div.x1l90r2v div.html-div"
+                ]
+            ],
+            "offsetY": 2.921875,
+            "offsetX": 275.5
+        },
+        {
+            "type": "click",
+            "target": "main",
+            "selectors": [
+                [
+                    "div.x1xegmmw > div > div > div:nth-of-type(1) div:nth-of-type(1) > span"
+                ],
+                [
+                    "xpath///*[@id=\"mount_0_0_yt\"]/div/div[1]/div/div[4]/div/div/div[1]/div/div[2]/div/div/div/form/div/div[2]/div/div/div[2]/div[2]/div/div/div[1]/div/div/div/div/div/div[1]/div/div[2]/div/div/div[1]/span"
+                ],
+                [
+                    "pierce/div.x1xegmmw > div > div > div:nth-of-type(1) div:nth-of-type(1) > span"
+                ]
+            ],
+            "offsetY": 6.96875,
+            "offsetX": 347.5
+        },
+        {
+            "type": "click",
+            "target": "main",
+            "selectors": [
+                [
+                    "label:nth-of-type(2) div:nth-of-type(1) > span"
+                ],
+                [
+                    "xpath///*[@id=\"mount_0_0_yt\"]/div/div[1]/div/div[4]/div/div/div[1]/div/div[2]/div/div/div/form/div/div[3]/div/div/div/div[2]/div/div[1]/div/div/div[2]/label[2]/div/div/div/div/div[1]/div/div[2]/div/div/div[1]/span"
+                ],
+                [
+                    "pierce/label:nth-of-type(2) div:nth-of-type(1) > span"
+                ]
+            ],
+            "offsetY": 7.828125,
+            "offsetX": 231.5
+        },
+        {
+            "type": "click",
+            "target": "main",
+            "selectors": [
+                [
+                    "div:nth-of-type(4) div.x1hc1fzr div.x9f619 > div:nth-of-type(2) span > span"
+                ],
+                [
+                    "xpath///*[@id=\"mount_0_0_yt\"]/div/div[1]/div/div[4]/div/div/div[1]/div/div[2]/div/div/div/form/div/div[3]/div/div/div/div[2]/div/div[2]/div[2]/div[2]/div/div/div[1]/div/span/span"
+                ],
+                [
+                    "pierce/div:nth-of-type(4) div.x1hc1fzr div.x9f619 > div:nth-of-type(2) span > span"
+                ],
+                [
+                    "text/Fertig"
+                ]
+            ],
+            "offsetY": 5.203125,
+            "offsetX": 3.375
+        },
+        {
+            "type": "click",
+            "target": "main",
+            "selectors": [
+                [
+                    "div:nth-of-type(4) div.x1hc1fzr div:nth-of-type(2) > div > div > div > div.html-div"
+                ],
+                [
+                    "xpath///*[@id=\"mount_0_0_yt\"]/div/div[1]/div/div[4]/div/div/div[1]/div/div[2]/div/div/div/form/div/div[2]/div/div/div[2]/div[2]/div/div/div[2]/div/div/div/div[1]"
+                ],
+                [
+                    "pierce/div:nth-of-type(4) div.x1hc1fzr div:nth-of-type(2) > div > div > div > div.html-div"
+                ]
+            ],
+            "offsetY": 9.984375,
+            "offsetX": 333.5
+        },
+        {
+            "type": "click",
+            "target": "main",
+            "selectors": [
+                [
+                    "form > div > div.x1hc1fzr svg"
+                ],
+                [
+                    "xpath///*[@id=\"mount_0_0_yt\"]/div/div[1]/div/div[4]/div/div/div[1]/div/div[2]/div/div/div/form/div/div[3]/div/div/div[1]/div[3]/div/svg"
+                ],
+                [
+                    "pierce/form > div > div.x1hc1fzr svg"
+                ]
+            ],
+            "offsetY": 15.5,
+            "offsetX": 17.5
+        },
+        {
+            "type": "click",
+            "target": "main",
+            "selectors": [
+                [
+                    "div:nth-of-type(1) > div > div:nth-of-type(4) div.xod5an3 span > span"
+                ],
+                [
+                    "xpath///*[@id=\"mount_0_0_yt\"]/div/div[1]/div/div[4]/div/div/div[1]/div/div[2]/div/div/div/form/div/div[2]/div/div/div[2]/div[3]/div/div/div/div/div[1]/div/span/span"
+                ],
+                [
+                    "pierce/div:nth-of-type(1) > div > div:nth-of-type(4) div.xod5an3 span > span"
+                ]
+            ],
+            "offsetY": 10.53125,
+            "offsetX": 20.375
+        }
+    ]
+}

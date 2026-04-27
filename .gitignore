@@ -24,6 +24,9 @@ Thumbs.db
 *.exe
 *.test
 *.out
+cov_*
+coverage
+
 
 # Wails dev server
 wails.exe

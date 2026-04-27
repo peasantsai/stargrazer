@@ -1,0 +1,113 @@
+{
+    "title": "facebook_upload_post_no_image",
+    "steps": [
+        {
+            "type": "setViewport",
+            "width": 1249,
+            "height": 771,
+            "deviceScaleFactor": 1,
+            "isMobile": false,
+            "hasTouch": false,
+            "isLandscape": false
+        },
+        {
+            "type": "navigate",
+            "url": "https://www.facebook.com/",
+            "assertedEvents": [
+                {
+                    "type": "navigation",
+                    "url": "https://www.facebook.com/",
+                    "title": "(1) Facebook"
+                }
+            ]
+        },
+        {
+            "type": "click",
+            "target": "main",
+            "selectors": [
+                [
+                    "div.x78zum5 > div > div.xod5an3 div.x1ejq31n span"
+                ],
+                [
+                    "xpath///*[@id=\"mount_0_0_hn\"]/div/div[1]/div/div[3]/div/div/div[1]/div[1]/div/div[2]/div/div/div/div[2]/div/div[2]/div/div/div/div/div[1]/div[1]/span"
+                ],
+                [
+                    "pierce/div.x78zum5 > div > div.xod5an3 div.x1ejq31n span"
+                ],
+                [
+                    "text/Was machst du"
+                ]
+            ],
+            "offsetY": 13.390625,
+            "offsetX": 116.5
+        },
+        {
+            "type": "keyDown",
+            "target": "main",
+            "key": "<"
+        },
+        {
+            "type": "keyUp",
+            "key": "<",
+            "target": "main"
+        },
+        {
+            "type": "change",
+            "value": "<text-goes-here>",
+            "selectors": [
+                [
+                    "aria/Was machst du gerade, Daniyal?[role=\"textbox\"]"
+                ],
+                [
+                    "div.x1ed109x > div.x1iyjqo2 > div > div > div.xzsf02u"
+                ],
+                [
+                    "xpath///*[@id=\"mount_0_0_hn\"]/div/div[1]/div/div[4]/div/div/div[1]/div/div[2]/div/div/div/form/div/div[1]/div/div/div/div[2]/div[1]/div[1]/div[1]/div/div/div[1]"
+                ],
+                [
+                    "pierce/div.x1ed109x > div.x1iyjqo2 > div > div > div.xzsf02u"
+                ]
+            ],
+            "target": "main"
+        },
+        {
+            "type": "keyUp",
+            "key": "<",
+            "target": "main"
+        },
+        {
+            "type": "click",
+            "target": "main",
+            "selectors": [
+                [
+                    "#mount_0_0_hn > div > div:nth-of-type(1) > div > div:nth-of-type(4) div.html-div"
+                ],
+                [
+                    "xpath///*[@id=\"mount_0_0_hn\"]/div/div[1]/div/div[4]/div/div/div[1]/div/div[2]/div/div/div/form/div/div[1]/div/div/div/div[3]/div[2]/div/div/div/div[1]"
+                ],
+                [
+                    "pierce/#mount_0_0_hn > div > div:nth-of-type(1) > div > div:nth-of-type(4) div.html-div"
+                ]
+            ],
+            "offsetY": 9,
+            "offsetX": 418.5
+        },
+        {
+            "type": "click",
+            "target": "main",
+            "selectors": [
+                [
+                    "div:nth-of-type(1) > div > div:nth-of-type(4) div.xod5an3 span > span"
+                ],
+                [
+                    "xpath///*[@id=\"mount_0_0_hn\"]/div/div[1]/div/div[4]/div/div/div[1]/div/div[2]/div/div/div/form/div/div[2]/div/div/div[2]/div[3]/div/div/div/div/div[1]/div/span/span"
+                ],
+                [
+                    "pierce/div:nth-of-type(1) > div > div:nth-of-type(4) div.xod5an3 span > span"
+                ]
+            ],
+            "offsetY": 14.546875,
+            "offsetX": 12.375
+        }
+    ]
+}
