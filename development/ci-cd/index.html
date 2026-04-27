@@ -648,6 +648,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../guide/automations/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Automations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../guide/settings/" class="md-nav__link">
         
   
@@ -1088,10 +1116,43 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#target-platforms" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Target Platforms
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#ci-scripts" class="md-nav__link">
     <span class="md-ellipsis">
       
         CI Scripts
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#chromium-caching" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Chromium Caching
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#running-tests-locally" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Running Tests Locally
       
     </span>
   </a>
@@ -1230,10 +1291,43 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#target-platforms" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Target Platforms
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#ci-scripts" class="md-nav__link">
     <span class="md-ellipsis">
       
         CI Scripts
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#chromium-caching" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Chromium Caching
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#running-tests-locally" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Running Tests Locally
       
     </span>
   </a>
@@ -1266,35 +1360,41 @@
 <thead>
 <tr>
 <th>Workflow</th>
+<th>File</th>
 <th>Trigger</th>
 <th>Purpose</th>
 </tr>
 </thead>
 <tbody>
 <tr>
+<td>CI</td>
 <td><code>ci.yml</code></td>
-<td>Push to <code>main</code>/<code>develop</code>, PRs</td>
-<td>Lint + type-check + build verification</td>
+<td>Push to <code>main</code>, PRs</td>
+<td>Lint, type-check, Go tests, frontend tests, build verification</td>
 </tr>
 <tr>
+<td>Build</td>
 <td><code>build.yml</code></td>
 <td>Called by <code>release.yml</code></td>
-<td>Reusable per-platform build</td>
+<td>Reusable per-platform Wails build</td>
 </tr>
 <tr>
+<td>Release</td>
 <td><code>release.yml</code></td>
 <td>Tag push (<code>v*</code>) or manual dispatch</td>
-<td>Full release pipeline</td>
+<td>Full 6-platform release pipeline</td>
 </tr>
 <tr>
+<td>Docs</td>
 <td><code>docs.yml</code></td>
 <td>Push to <code>main</code></td>
 <td>Deploy MkDocs to GitHub Pages</td>
 </tr>
 <tr>
-<td><code>sonar.yml</code></td>
+<td>SBOM</td>
+<td><code>sbom.yml</code></td>
 <td>Push to <code>main</code>, PRs</td>
-<td>SonarCloud quality analysis</td>
+<td>Generate and publish Software Bill of Materials</td>
 </tr>
 </tbody>
 </table>
@@ -1305,17 +1405,62 @@
 </code></pre></div>
 <h3 id="via-github-ui">Via GitHub UI<a class="headerlink" href="#via-github-ui" title="Permanent link">&para;</a></h3>
 <ol>
-<li>Go to Actions &gt; Release &gt; Run workflow</li>
+<li>Go to <strong>Actions → Release → Run workflow</strong></li>
 <li>Enter version (e.g., <code>v1.0.0</code>)</li>
-<li>Uncheck "Dry run" for a real release</li>
+<li>Uncheck <strong>Dry run</strong> for a real release</li>
 <li>Select target platforms via checkboxes</li>
 </ol>
 <h3 id="what-happens">What Happens<a class="headerlink" href="#what-happens" title="Permanent link">&para;</a></h3>
 <ol>
-<li><strong>Prepare</strong>: Resolves version, finds previous tag, creates release branch</li>
-<li><strong>Build</strong>: Parallel builds per selected platform (reusable <code>build.yml</code>)</li>
+<li><strong>Prepare</strong>: Resolves version, finds previous tag, creates <code>release/v&lt;version&gt;</code> branch</li>
+<li><strong>Build</strong> (parallel): Builds for each selected platform via reusable <code>build.yml</code></li>
+<li>Linux x64 / ARM64 (with UPX compression)</li>
+<li>Windows x64 / ARM64 (NSIS installer)</li>
+<li>macOS Intel / Apple Silicon (codesigned + <code>productbuild</code>)</li>
 <li><strong>Publish</strong>: Collects artifacts, generates changelog + release notes, publishes GitHub Release</li>
 </ol>
+<h2 id="target-platforms">Target Platforms<a class="headerlink" href="#target-platforms" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Platform</th>
+<th>Binary</th>
+<th>Packaging</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Linux x64</td>
+<td>ELF</td>
+<td><code>.tar.gz</code> (UPX compressed)</td>
+</tr>
+<tr>
+<td>Linux ARM64</td>
+<td>ELF</td>
+<td><code>.tar.gz</code> (UPX compressed)</td>
+</tr>
+<tr>
+<td>Windows x64</td>
+<td>PE</td>
+<td>NSIS <code>.exe</code> installer</td>
+</tr>
+<tr>
+<td>Windows ARM64</td>
+<td>PE</td>
+<td>NSIS <code>.exe</code> installer</td>
+</tr>
+<tr>
+<td>macOS Intel</td>
+<td>Mach-O</td>
+<td><code>.pkg</code> via <code>productbuild</code></td>
+</tr>
+<tr>
+<td>macOS Apple Silicon</td>
+<td>Mach-O</td>
+<td><code>.pkg</code> via <code>productbuild</code></td>
+</tr>
+</tbody>
+</table>
 <h2 id="ci-scripts">CI Scripts<a class="headerlink" href="#ci-scripts" title="Permanent link">&para;</a></h2>
 <p>All build logic lives in <code>scripts/ci/</code>:</p>
 <table>
@@ -1332,15 +1477,15 @@
 </tr>
 <tr>
 <td><code>download-chromium.sh</code></td>
-<td>Download + extract Chromium</td>
+<td>Download + extract Ungoogled Chromium</td>
 </tr>
 <tr>
 <td><code>clean-chromium.sh</code></td>
-<td>Strip non-essential files</td>
+<td>Strip non-essential Chromium files</td>
 </tr>
 <tr>
 <td><code>build.sh</code></td>
-<td>Wails build with platform flags</td>
+<td>Wails build with platform-specific flags</td>
 </tr>
 <tr>
 <td><code>bundle-assets.sh</code></td>
@@ -1364,6 +1509,20 @@
 </tr>
 </tbody>
 </table>
+<h2 id="chromium-caching">Chromium Caching<a class="headerlink" href="#chromium-caching" title="Permanent link">&para;</a></h2>
+<p>Chromium binaries are cached per-platform in GitHub Actions using <code>actions/cache</code> keyed on a hash of <code>download-chromium.sh</code>. This avoids re-downloading (~200 MB) on every run.</p>
+<h2 id="running-tests-locally">Running Tests Locally<a class="headerlink" href="#running-tests-locally" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1"># Go backend tests</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="nb">cd</span><span class="w"> </span>stargrazer
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>go<span class="w"> </span><span class="nb">test</span><span class="w"> </span>./...
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="c1"># Frontend tests</span>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="nb">cd</span><span class="w"> </span>stargrazer/frontend
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>npm<span class="w"> </span><span class="nb">test</span>
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="c1"># Frontend coverage</span>
+<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a>npm<span class="w"> </span>run<span class="w"> </span>coverage
+</code></pre></div>
 
 
 

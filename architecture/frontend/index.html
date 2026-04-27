@@ -648,6 +648,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../guide/automations/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Automations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../guide/settings/" class="md-nav__link">
         
   
@@ -895,10 +923,65 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#directory-structure" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Directory Structure
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#views" class="md-nav__link">
     <span class="md-ellipsis">
       
         Views
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#automation-builder-platformpage" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Automation Builder (PlatformPage)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#modals" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Modals
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#hooks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Hooks
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#types" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Types
       
     </span>
   </a>
@@ -917,10 +1000,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#component-pattern" class="md-nav__link">
+  <a href="#wails-bindings" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Component Pattern
+        Wails Bindings
       
     </span>
   </a>
@@ -928,10 +1011,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#wails-bindings" class="md-nav__link">
+  <a href="#testing" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Wails Bindings
+        Testing
       
     </span>
   </a>
@@ -1163,10 +1246,65 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#directory-structure" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Directory Structure
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#views" class="md-nav__link">
     <span class="md-ellipsis">
       
         Views
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#automation-builder-platformpage" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Automation Builder (PlatformPage)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#modals" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Modals
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#hooks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Hooks
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#types" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Types
       
     </span>
   </a>
@@ -1185,10 +1323,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#component-pattern" class="md-nav__link">
+  <a href="#wails-bindings" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Component Pattern
+        Wails Bindings
       
     </span>
   </a>
@@ -1196,10 +1334,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#wails-bindings" class="md-nav__link">
+  <a href="#testing" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Wails Bindings
+        Testing
       
     </span>
   </a>
@@ -1234,45 +1372,82 @@
 <li><strong>Plain CSS</strong> with custom properties (no CSS-in-JS)</li>
 <li><strong>Wails bindings</strong> for Go backend calls</li>
 </ul>
+<h2 id="directory-structure">Directory Structure<a class="headerlink" href="#directory-structure" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>frontend/src/
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>├── App.tsx                # Root: view routing, browser state, platform list
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>├── components/
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>│   ├── Sidebar.tsx        # Nav links, browser status dot, theme/account toggles
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>│   ├── ChatPanel.tsx      # Upload form, hashtag bubbles, file picker, message log
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>│   ├── SchedulesPanel.tsx # Cron job cards
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>│   ├── ConfigPanel.tsx    # Browser settings, chromium flags, social connections, logs
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>│   ├── PlatformPage.tsx   # Per-platform: session info, automation builder, cookie import
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>│   ├── HamburgerBtn.tsx   # Sidebar toggle button
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>│   ├── modals/
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>│   │   ├── AccountModal.tsx         # Session details overlay
+<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>│   │   ├── CookiePasteModal.tsx     # Paste Netscape cookie text for import
+<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>│   │   ├── CreateScheduleModal.tsx  # New scheduled job form
+<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>│   │   ├── LogsModal.tsx            # Log viewer with filter and JSON export
+<a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>│   │   └── ScheduleDetailModal.tsx  # Job stats, pause/resume, delete
+<a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>│   └── settings/
+<a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>│       └── SocialMediaSection.tsx   # Platform cards in the Settings view
+<a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a>├── hooks/
+<a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a>│   ├── useTheme.ts        # Toggle dark/light; persists to localStorage
+<a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a>│   └── useAccount.ts      # Display name, email, avatar from localStorage
+<a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a>├── types/index.ts         # All wire types mirroring Go structs in app.go
+<a id="__codelineno-0-22" name="__codelineno-0-22" href="#__codelineno-0-22"></a>├── constants/
+<a id="__codelineno-0-23" name="__codelineno-0-23" href="#__codelineno-0-23"></a>│   ├── platforms.tsx      # Platform metadata (icons, labels, IDs)
+<a id="__codelineno-0-24" name="__codelineno-0-24" href="#__codelineno-0-24"></a>│   └── chromiumFlags.ts   # Grouped Chromium flag definitions
+<a id="__codelineno-0-25" name="__codelineno-0-25" href="#__codelineno-0-25"></a>├── styles/
+<a id="__codelineno-0-26" name="__codelineno-0-26" href="#__codelineno-0-26"></a>│   ├── theme.css          # CSS custom properties for dark/light themes
+<a id="__codelineno-0-27" name="__codelineno-0-27" href="#__codelineno-0-27"></a>│   └── global.css         # All component styles
+<a id="__codelineno-0-28" name="__codelineno-0-28" href="#__codelineno-0-28"></a>└── test/
+<a id="__codelineno-0-29" name="__codelineno-0-29" href="#__codelineno-0-29"></a>    ├── setup.ts            # Vitest global setup (jsdom)
+<a id="__codelineno-0-30" name="__codelineno-0-30" href="#__codelineno-0-30"></a>    ├── wailsMock.ts        # Wails runtime + binding mocks
+<a id="__codelineno-0-31" name="__codelineno-0-31" href="#__codelineno-0-31"></a>    └── modelsMock.ts       # Fixture data for tests
+</code></pre></div>
 <h2 id="views">Views<a class="headerlink" href="#views" title="Permanent link">&para;</a></h2>
-<p>All components live in a single <code>App.tsx</code> file:</p>
+<p>The <code>View</code> discriminated union drives navigation in <code>App.tsx</code>:</p>
 <table>
 <thead>
 <tr>
-<th>View</th>
+<th>View value</th>
+<th>Component</th>
 <th>Description</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><strong>Chat</strong></td>
+<td><code>'chat'</code></td>
+<td><code>ChatPanel</code></td>
 <td>Upload form, message log, browser start/stop</td>
 </tr>
 <tr>
-<td><strong>Schedules</strong></td>
-<td>Job list, create/detail modals</td>
+<td><code>'schedules'</code></td>
+<td><code>SchedulesPanel</code></td>
+<td>Cron job list; create/detail modals</td>
 </tr>
 <tr>
-<td><strong>Settings</strong></td>
+<td><code>'config'</code></td>
+<td><code>ConfigPanel</code></td>
 <td>Social connections, browser config, flags, logs</td>
+</tr>
+<tr>
+<td><code>'platform:&lt;id&gt;'</code></td>
+<td><code>PlatformPage</code></td>
+<td>Session info, automation steps builder, cookie import</td>
 </tr>
 </tbody>
 </table>
-<h2 id="styling">Styling<a class="headerlink" href="#styling" title="Permanent link">&para;</a></h2>
-<p>Two CSS files:</p>
+<h2 id="automation-builder-platformpage">Automation Builder (<code>PlatformPage</code>)<a class="headerlink" href="#automation-builder-platformpage" title="Permanent link">&para;</a></h2>
+<p><code>PlatformPage</code> provides per-platform functionality:</p>
 <ul>
-<li><code>styles/theme.css</code> — CSS variables for <code>[data-theme="dark"]</code> and <code>[data-theme="light"]</code></li>
-<li><code>styles/global.css</code> — All component styles consuming theme variables</li>
+<li><strong>Session info</strong> — login status, last login/check time, username</li>
+<li><strong>Cookie import</strong> — paste Netscape cookie text → <code>ImportCookies()</code> → keep-alive job created automatically</li>
+<li><strong>Automation builder</strong> — Create, edit, delete, and run named automation sequences (navigate, click, type, wait, evaluate, scroll steps)</li>
+<li><strong>Actions menu</strong> — Open platform, check login, purge session</li>
 </ul>
-<h2 id="component-pattern">Component Pattern<a class="headerlink" href="#component-pattern" title="Permanent link">&para;</a></h2>
-<p>Components follow a consistent pattern:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kd">function</span><span class="w"> </span><span class="nx">MyPanel</span><span class="p">({</span><span class="w"> </span><span class="nx">prop1</span><span class="p">,</span><span class="w"> </span><span class="nx">prop2</span><span class="w"> </span><span class="p">}</span><span class="o">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">prop1</span><span class="o">:</span><span class="w"> </span><span class="kt">Type</span><span class="p">;</span><span class="w"> </span><span class="nx">prop2</span><span class="o">:</span><span class="w"> </span><span class="kt">Type</span><span class="w"> </span><span class="p">})</span><span class="w"> </span><span class="p">{</span>
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="p">[</span><span class="nx">state</span><span class="p">,</span><span class="w"> </span><span class="nx">setState</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">useState</span><span class="p">&lt;</span><span class="nt">Type</span><span class="p">&gt;(</span><span class="nx">initial</span><span class="p">);</span>
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">  </span><span class="c1">// ... handlers</span>
-<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="p">(&lt;</span><span class="nt">div</span><span class="w"> </span><span class="na">className</span><span class="o">=</span><span class="s">&quot;my-panel&quot;</span><span class="p">&gt;...&lt;/</span><span class="nt">div</span><span class="p">&gt;);</span>
-<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="p">}</span>
-</code></pre></div>
-<p>Modals use the overlay pattern with click-outside dismissal:</p>
+<h2 id="modals">Modals<a class="headerlink" href="#modals" title="Permanent link">&para;</a></h2>
+<p>All modals use the overlay pattern with click-outside dismissal:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="p">&lt;</span><span class="nt">div</span><span class="w"> </span><span class="na">className</span><span class="o">=</span><span class="s">&quot;modal-overlay&quot;</span><span class="w"> </span><span class="na">onClick</span><span class="o">=</span><span class="p">{</span><span class="nx">onClose</span><span class="p">}&gt;</span>
 <a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">  </span><span class="p">&lt;</span><span class="nt">div</span><span class="w"> </span><span class="na">className</span><span class="o">=</span><span class="s">&quot;modal-content&quot;</span><span class="w"> </span><span class="na">onClick</span><span class="o">=</span><span class="p">{</span><span class="nx">e</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="nx">e</span><span class="p">.</span><span class="nx">stopPropagation</span><span class="p">()}&gt;</span>
 <a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">    </span><span class="p">&lt;</span><span class="nt">div</span><span class="w"> </span><span class="na">className</span><span class="o">=</span><span class="s">&quot;modal-header&quot;</span><span class="p">&gt;...&lt;/</span><span class="nt">div</span><span class="p">&gt;</span>
@@ -1281,10 +1456,78 @@
 <a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="w">  </span><span class="p">&lt;/</span><span class="nt">div</span><span class="p">&gt;</span>
 <a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="p">&lt;/</span><span class="nt">div</span><span class="p">&gt;</span>
 </code></pre></div>
+<h2 id="hooks">Hooks<a class="headerlink" href="#hooks" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Hook</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>useTheme</code></td>
+<td>Toggle dark/light theme; persists selection to <code>localStorage</code></td>
+</tr>
+<tr>
+<td><code>useAccount</code></td>
+<td>Read/write display name, email, avatar URL in <code>localStorage</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="types">Types<a class="headerlink" href="#types" title="Permanent link">&para;</a></h2>
+<p>All wire-format types live in <code>src/types/index.ts</code> and mirror Go struct definitions in <code>app.go</code>:</p>
+<table>
+<thead>
+<tr>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>View</code></td>
+<td>Discriminated union of navigable views</td>
+</tr>
+<tr>
+<td><code>PlatformResponse</code></td>
+<td>Platform session status from <code>GetPlatforms()</code></td>
+</tr>
+<tr>
+<td><code>ScheduleResponse</code></td>
+<td>Scheduled job from <code>GetSchedules()</code></td>
+</tr>
+<tr>
+<td><code>BrowserConfigResponse</code></td>
+<td>Browser settings from <code>GetBrowserConfig()</code></td>
+</tr>
+<tr>
+<td><code>AutomationData</code> / <code>AutomationStepData</code></td>
+<td>Automation builder model</td>
+</tr>
+<tr>
+<td><code>LogEntryResponse</code></td>
+<td>Log entry from <code>GetLogs()</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="styling">Styling<a class="headerlink" href="#styling" title="Permanent link">&para;</a></h2>
+<p>Two CSS files:</p>
+<ul>
+<li><code>styles/theme.css</code> — CSS variables for <code>[data-theme="dark"]</code> and <code>[data-theme="light"]</code></li>
+<li><code>styles/global.css</code> — All component styles consuming theme variables; no inline styles or CSS-in-JS</li>
+</ul>
 <h2 id="wails-bindings">Wails Bindings<a class="headerlink" href="#wails-bindings" title="Permanent link">&para;</a></h2>
 <p>Auto-generated in <code>frontend/wailsjs/go/main/App.js</code>. Import and call:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="k">import</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">StartBrowser</span><span class="p">,</span><span class="w"> </span><span class="nx">GetPlatforms</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">&#39;../wailsjs/go/main/App&#39;</span><span class="p">;</span>
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="kd">const</span><span class="w"> </span><span class="nx">res</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">await</span><span class="w"> </span><span class="nx">StartBrowser</span><span class="p">();</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="k">import</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">StartBrowser</span><span class="p">,</span><span class="w"> </span><span class="nx">GetPlatforms</span><span class="p">,</span><span class="w"> </span><span class="nx">GetAutomations</span><span class="p">,</span><span class="w"> </span><span class="nx">RunAutomation</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">&#39;../wailsjs/go/main/App&#39;</span><span class="p">;</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="kd">const</span><span class="w"> </span><span class="nx">platforms</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">await</span><span class="w"> </span><span class="nx">GetPlatforms</span><span class="p">();</span>
+</code></pre></div>
+<p>Do <strong>not</strong> hand-edit generated binding files.</p>
+<h2 id="testing">Testing<a class="headerlink" href="#testing" title="Permanent link">&para;</a></h2>
+<p>Tests use <strong>Vitest</strong> + <strong>@testing-library/react</strong> with a jsdom environment. Wails runtime is mocked in <code>test/wailsMock.ts</code>. Run:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="nb">cd</span><span class="w"> </span>frontend
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>npm<span class="w"> </span><span class="nb">test</span><span class="w">          </span><span class="c1"># watch mode</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>npm<span class="w"> </span>run<span class="w"> </span>coverage<span class="w">  </span><span class="c1"># coverage report</span>
 </code></pre></div>
 
 

@@ -648,6 +648,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../guide/automations/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Automations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../guide/settings/" class="md-nav__link">
         
   
@@ -865,6 +893,17 @@
     <span class="md-ellipsis">
       
         Singletons
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#security" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Security
       
     </span>
   </a>
@@ -1184,6 +1223,17 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#security" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Security
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -1229,7 +1279,7 @@
 </tr>
 <tr>
 <td>Configuration</td>
-<td>Viper (yaml + CLI + env + runtime)</td>
+<td>Viper (yaml + CLI flags + env vars + runtime mutations)</td>
 </tr>
 <tr>
 <td>Scheduler</td>
@@ -1237,36 +1287,69 @@
 </tr>
 <tr>
 <td>Browser</td>
-<td>Ungoogled Chromium via CDP</td>
+<td>Ungoogled Chromium via Chrome DevTools Protocol (CDP)</td>
 </tr>
 <tr>
 <td>IPC</td>
-<td>WebSocket (CDP), Wails bindings (Go↔JS)</td>
+<td>WebSocket (CDP), Wails bindings (Go↔JS via generated <code>App.js</code>)</td>
 </tr>
 </tbody>
 </table>
 <h2 id="data-flow">Data Flow<a class="headerlink" href="#data-flow" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>User → React UI → Wails Bindings → Go App → Browser Manager → CDP → Chromium
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>                                         → Scheduler → Keep-alive / Uploads
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>                                         → SessionStore → JSON on disk
-<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>                                         → Logger → Ring buffer + stdout
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>User → React UI → Wails Bindings → Go App (app.go)
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>                                        ├─ Browser Manager  → CDP WebSocket → Chromium
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>                                        ├─ Scheduler        → Keep-alive / Upload jobs
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>                                        ├─ SessionStore     → accounts.json on disk
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>                                        ├─ Automation Store → automations/&lt;platform&gt;.json
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>                                        ├─ Workflow Engine  → workflows/&lt;platform&gt;_upload.json
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>                                        └─ Logger           → Ring buffer (1000 entries) + stdout
 </code></pre></div>
 <h2 id="persistence">Persistence<a class="headerlink" href="#persistence" title="Permanent link">&para;</a></h2>
-<p>All data lives in <code>%APPDATA%/stargrazer/sessions/</code>:</p>
+<p>All data lives under a platform-specific base:</p>
+<ul>
+<li><strong>Windows</strong>: <code>%APPDATA%\stargrazer\sessions\</code></li>
+<li><strong>macOS</strong>: <code>~/Library/Application Support/stargrazer/sessions/</code></li>
+<li><strong>Linux</strong>: <code>$XDG_DATA_HOME/stargrazer/sessions/</code> (falls back to <code>~/.local/share/</code>)</li>
+</ul>
+<p>Directory layout:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>sessions/
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>  accounts.json              # Platform login status
-<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>  schedules.json             # Scheduled jobs
-<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>  browser_profile/           # Shared Chromium profile
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>  accounts.json              # Platform login status (SessionStore)
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>  schedules.json             # Scheduled cron jobs (Scheduler)
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>  browser_profile/           # Shared Chromium user-data-dir (all platforms share one profile)
 <a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>    cookies/
 <a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>      facebook.json          # Exported cookies per platform
 <a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>      instagram.json
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>      ...
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>  data/
+<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a>    uploads/                 # Upload attempt records (timestamped JSON)
+<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a>  automations/
+<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a>    facebook.json            # Saved automation configs per platform
+<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a>    instagram.json
+<a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a>    ...
+</code></pre></div>
+<p>Workflow files are stored separately, relative to the executable or cwd:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>workflows/
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>  facebook_upload.json
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>  instagram_upload.json
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>  tiktok_upload.json
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>  youtube_upload.json
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>  linkedin_upload.json
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>  x_upload.json
 </code></pre></div>
 <h2 id="singletons">Singletons<a class="headerlink" href="#singletons" title="Permanent link">&para;</a></h2>
-<p>Three packages use the singleton pattern:</p>
+<p>Four packages use the singleton pattern:</p>
 <ul>
-<li><code>browser.Manager</code> — One Chromium process at a time</li>
-<li><code>config</code> — One Viper instance</li>
-<li><code>scheduler.Scheduler</code> — One cron runner</li>
+<li><code>browser.Manager</code> — One Chromium process at a time (<code>sync.Once</code> + package-level <code>instance</code>)</li>
+<li><code>config</code> — One Viper instance; <code>Get()</code> falls back to defaults when not initialised</li>
+<li><code>scheduler.Scheduler</code> — One cron runner (<code>sync.Once</code> + package-level <code>instance</code>)</li>
+<li><code>logger.ringBuffer</code> — One in-memory ring buffer for log entries</li>
+</ul>
+<h2 id="security">Security<a class="headerlink" href="#security" title="Permanent link">&para;</a></h2>
+<ul>
+<li><code>safePlatformIDPattern</code> (<code>^[a-z0-9_-]+$</code>) guards all filesystem operations that use <code>platformID</code> in paths, preventing path traversal</li>
+<li>Cookie files written with <code>0600</code> permissions; directories with <code>0700</code></li>
+<li>Browser launched without <code>--password-store</code> or credential sync flags</li>
+<li>CDP port bound only on loopback (<code>127.0.0.1</code>)</li>
 </ul>
 
 
