@@ -71,7 +71,8 @@ type BrowserStatusResponse struct {
 
 func (a *App) StartBrowser() BrowserStatusResponse {
 	logger.Info("browser", "Starting browser...")
-	if err := a.browser.Start(); err != nil {
+	sessionDir := social.SharedSessionDir()
+	if err := a.browser.StartWithOptions(sessionDir, ""); err != nil {
 		logger.Error("browser", fmt.Sprintf("Start failed: %v", err))
 		return BrowserStatusResponse{Status: string(browser.StatusError), Error: err.Error()}
 	}
@@ -527,6 +528,21 @@ func (a *App) GetLogs() []LogEntryResponse {
 func (a *App) ExportLogs() string { return string(logger.Export()) }
 func (a *App) ClearLogs()         { logger.Clear() }
 
+// LogFromFrontend allows the React frontend to send log entries to the
+// shared application log so they appear alongside backend logs.
+func (a *App) LogFromFrontend(level, source, message string) {
+	switch level {
+	case "warn":
+		logger.Warn(source, message)
+	case "error":
+		logger.Error(source, message)
+	case "debug":
+		logger.Debug(source, message)
+	default:
+		logger.Info(source, message)
+	}
+}
+
 // --- Upload / Workflow ---
 
 // SelectFile opens a native file dialog and returns the selected file path.
@@ -726,8 +742,8 @@ func (a *App) RunAutomation(platformID, id string) RunAutomationResponse {
 	}
 	logger.Info("automation", fmt.Sprintf("Running %q (%d steps) for %s", cfg.Name, len(cfg.Steps), platformID))
 	for i, step := range cfg.Steps {
-		if err := a.executeStep(step); err != nil {
-			msg := fmt.Sprintf("step %d (%s %q): %v", i+1, step.Action, step.Label, err)
+		if err := a.executeStep(i, step); err != nil {
+			msg := fmt.Sprintf("step %d/%d failed (%s): %v", i+1, len(cfg.Steps), step.Action, err)
 			logger.Error("automation", msg)
 			return RunAutomationResponse{Success: false, Message: msg}
 		}
@@ -735,30 +751,156 @@ func (a *App) RunAutomation(platformID, id string) RunAutomationResponse {
 	if err := a.automations.RecordRun(platformID, id); err != nil {
 		logger.Warn("automation", fmt.Sprintf("RecordRun: %v", err))
 	}
-	return RunAutomationResponse{Success: true, Message: fmt.Sprintf("'%s' completed (%d steps)", cfg.Name, len(cfg.Steps))}
+	msg := fmt.Sprintf("'%s' completed successfully (%d steps)", cfg.Name, len(cfg.Steps))
+	logger.Info("automation", msg)
+	return RunAutomationResponse{Success: true, Message: msg}
+}
+
+// TestAutomation starts the browser if needed, opens a new tab for the platform,
+// executes the automation, waits 5 seconds, then cleans up the tab/browser.
+func (a *App) TestAutomation(platformID, id string) RunAutomationResponse {
+	if !safePlatformIDPattern.MatchString(platformID) {
+		return RunAutomationResponse{Success: false, Message: "invalid platform ID"}
+	}
+	platform := social.FindPlatform(social.Platform(platformID))
+	if platform == nil {
+		return RunAutomationResponse{Success: false, Message: fmt.Sprintf("unknown platform: %s", platformID)}
+	}
+
+	configs, err := a.automations.List(platformID)
+	if err != nil {
+		return RunAutomationResponse{Success: false, Message: err.Error()}
+	}
+	var cfg *automation.Config
+	for i := range configs {
+		if configs[i].ID == id {
+			cfg = &configs[i]
+			break
+		}
+	}
+	if cfg == nil {
+		return RunAutomationResponse{Success: false, Message: "automation not found"}
+	}
+
+	// Auto-start browser if not running.
+	browserWasStarted := false
+	if !a.browser.IsRunning() {
+		logger.Info("automation", "Browser not running — auto-starting for test")
+		sessionDir, _ := social.EnsureSessionDir(social.Platform(platformID))
+		if err := a.browser.StartWithOptions(sessionDir, ""); err != nil {
+			msg := fmt.Sprintf("auto-start browser failed: %v", err)
+			logger.Error("automation", msg)
+			return RunAutomationResponse{Success: false, Message: msg}
+		}
+		browserWasStarted = true
+		time.Sleep(2 * time.Second)
+		logger.Info("automation", "Browser auto-started for test")
+	}
+
+	// Open a new tab for the platform.
+	logger.Info("automation", fmt.Sprintf("Opening new tab for %s: %s", platform.Name, platform.URL))
+	tabID, tabErr := a.browser.OpenNewTab(platform.URL)
+	if tabErr != nil {
+		logger.Error("automation", fmt.Sprintf("Failed to open tab: %v", tabErr))
+		if browserWasStarted {
+			a.browser.Stop()
+		}
+		return RunAutomationResponse{Success: false, Message: fmt.Sprintf("failed to open tab: %v", tabErr)}
+	}
+	logger.Info("automation", fmt.Sprintf("Tab opened (ID: %s), waiting for page load...", tabID))
+	time.Sleep(3 * time.Second)
+
+	// Execute all steps.
+	logger.Info("automation", fmt.Sprintf("Testing %q (%d steps) for %s", cfg.Name, len(cfg.Steps), platformID))
+	var stepErr error
+	for i, step := range cfg.Steps {
+		if err := a.executeStep(i, step); err != nil {
+			stepErr = err
+			msg := fmt.Sprintf("step %d/%d failed (%s): %v", i+1, len(cfg.Steps), step.Action, err)
+			logger.Error("automation", msg)
+			break
+		}
+	}
+
+	// Wait 5 seconds before cleanup so user can observe the result.
+	logger.Info("automation", "Waiting 5 seconds before cleanup...")
+	time.Sleep(5 * time.Second)
+
+	// Cleanup: close the tab we opened.
+	if tabID != "" {
+		logger.Info("automation", fmt.Sprintf("Closing test tab %s", tabID))
+		if err := a.browser.CloseTab(tabID); err != nil {
+			logger.Warn("automation", fmt.Sprintf("Failed to close tab: %v", err))
+		}
+	}
+
+	// Stop browser if we started it.
+	if browserWasStarted {
+		logger.Info("automation", "Stopping auto-started browser")
+		a.browser.Stop()
+	}
+
+	if stepErr != nil {
+		if err := a.automations.RecordRun(platformID, id); err != nil {
+			logger.Warn("automation", fmt.Sprintf("RecordRun: %v", err))
+		}
+		return RunAutomationResponse{Success: false, Message: stepErr.Error()}
+	}
+	if err := a.automations.RecordRun(platformID, id); err != nil {
+		logger.Warn("automation", fmt.Sprintf("RecordRun: %v", err))
+	}
+	msg := fmt.Sprintf("Test '%s' completed successfully (%d steps)", cfg.Name, len(cfg.Steps))
+	logger.Info("automation", msg)
+	return RunAutomationResponse{Success: true, Message: msg}
 }
 
 // executeStep dispatches a single automation step to the appropriate browser method.
-func (a *App) executeStep(step automation.Step) error {
+func (a *App) executeStep(index int, step automation.Step) error {
+	stepNum := index + 1
 	switch step.Action {
 	case automation.ActionNavigate:
-		return a.browser.NavigateToURL(step.Target)
+		logger.Info("automation", fmt.Sprintf("  step %d: navigate → %s", stepNum, step.Target))
+		err := a.browser.NavigateToURL(step.Target)
+		if err == nil {
+			logger.Debug("automation", fmt.Sprintf("  step %d: navigate OK", stepNum))
+		}
+		return err
 	case automation.ActionClick:
-		return a.browser.ClickElement(step.Target)
+		logger.Info("automation", fmt.Sprintf("  step %d: click → %s", stepNum, step.Target))
+		err := a.browser.ClickElement(step.Target)
+		if err == nil {
+			logger.Debug("automation", fmt.Sprintf("  step %d: click OK", stepNum))
+		}
+		return err
 	case automation.ActionType:
-		return a.browser.TypeText(step.Target, step.Value)
+		logger.Info("automation", fmt.Sprintf("  step %d: type → %s (value: %q)", stepNum, step.Target, step.Value))
+		err := a.browser.TypeText(step.Target, step.Value)
+		if err == nil {
+			logger.Debug("automation", fmt.Sprintf("  step %d: type OK", stepNum))
+		}
+		return err
 	case automation.ActionWait:
 		ms := 1000
 		if n, err := strconv.Atoi(step.Value); err == nil && n > 0 {
 			ms = n
 		}
+		logger.Info("automation", fmt.Sprintf("  step %d: wait %dms", stepNum, ms))
 		time.Sleep(time.Duration(ms) * time.Millisecond)
 		return nil
 	case automation.ActionEvaluate:
+		logger.Info("automation", fmt.Sprintf("  step %d: evaluate JS (%d chars)", stepNum, len(step.Value)))
 		_, err := a.browser.EvaluateExpression(step.Value)
+		if err == nil {
+			logger.Debug("automation", fmt.Sprintf("  step %d: evaluate OK", stepNum))
+		}
 		return err
 	case automation.ActionScroll:
-		return a.browser.ScrollToElement(step.Target)
+		logger.Info("automation", fmt.Sprintf("  step %d: scroll → %s", stepNum, step.Target))
+		err := a.browser.ScrollToElement(step.Target)
+		if err == nil {
+			logger.Debug("automation", fmt.Sprintf("  step %d: scroll OK", stepNum))
+		}
+		return err
 	default:
 		return fmt.Errorf("unknown action: %q", step.Action)
 	}

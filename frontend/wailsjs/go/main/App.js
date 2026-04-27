@@ -62,6 +62,10 @@ export function ImportCookies(arg1, arg2) {
   return window['go']['main']['App']['ImportCookies'](arg1, arg2);
 }
 
+export function LogFromFrontend(arg1, arg2, arg3) {
+  return window['go']['main']['App']['LogFromFrontend'](arg1, arg2, arg3);
+}
+
 export function OpenPlatform(arg1) {
   return window['go']['main']['App']['OpenPlatform'](arg1);
 }
@@ -104,6 +108,10 @@ export function StartBrowser() {
 
 export function StopBrowser() {
   return window['go']['main']['App']['StopBrowser']();
+}
+
+export function TestAutomation(arg1, arg2) {
+  return window['go']['main']['App']['TestAutomation'](arg1, arg2);
 }
 
 export function TriggerUpload(arg1) {

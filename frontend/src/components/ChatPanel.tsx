@@ -1,15 +1,11 @@
 import { useState } from 'react';
-import { TriggerUpload, SelectFile } from '../../wailsjs/go/main/App';
+import { TriggerUpload, SelectFile, LogFromFrontend } from '../../wailsjs/go/main/App';
 import type { ChatMessage, PlatformResponse, UploadRequest } from '../types';
 import { PLATFORM_ICONS, PLATFORM_COLORS } from '../constants/platforms';
 import { HamburgerBtn } from './HamburgerBtn';
 
 interface Props {
   readonly messages: ChatMessage[];
-  readonly browserStatus: string;
-  readonly loading: boolean;
-  readonly onStart: () => void;
-  readonly onStop: () => void;
   readonly messagesEndRef: React.RefObject<HTMLDivElement>;
   readonly sidebarOpen: boolean;
   readonly onToggleSidebar: () => void;
@@ -18,10 +14,9 @@ interface Props {
 }
 
 export function ChatPanel({
-  messages, browserStatus, loading, onStart, onStop,
+  messages,
   messagesEndRef, sidebarOpen, onToggleSidebar, platforms, addMessage,
 }: Props) {
-  const isRunning = browserStatus === 'running';
   const [caption, setCaption] = useState('');
   const [tags, setTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState('');
@@ -62,7 +57,6 @@ export function ChatPanel({
   };
 
   const handleSend = async () => {
-    if (!isRunning) { addMessage('error', 'Start the browser first.'); return; }
     if (selectedPlatforms.size === 0) { addMessage('error', 'Select at least one platform.'); return; }
     const finalTags = [...tags];
     if (tagInput.trim()) {
@@ -74,14 +68,19 @@ export function ChatPanel({
       return;
     }
 
-    setUploading(true);
+    // Show user's request as a right-aligned bubble
     const platformNames = [...selectedPlatforms]
       .map(id => platforms.find(p => p.id === id)?.name ?? id)
       .join(', ');
-    addMessage('system', `Uploading to ${platformNames}...`);
-    if (selectedFileName) addMessage('info', `File: ${selectedFileName}`);
-    if (caption.trim()) addMessage('info', `Caption: ${caption.trim()}`);
-    if (finalTags.length > 0) addMessage('info', `Tags: ${finalTags.join(' ')}`);
+    const parts: string[] = [`Upload to ${platformNames}`];
+    if (selectedFileName) parts.push(`File: ${selectedFileName}`);
+    if (caption.trim()) parts.push(`Caption: ${caption.trim()}`);
+    if (finalTags.length > 0) parts.push(`Tags: ${finalTags.join(' ')}`);
+    addMessage('user', parts.join('\n'));
+
+    LogFromFrontend('info', 'chat', `Upload request: ${platformNames} | file=${selectedFileName} | caption=${caption.trim()} | tags=${finalTags.join(',')}`);
+
+    setUploading(true);
 
     try {
       const req: UploadRequest = {
@@ -91,17 +90,22 @@ export function ChatPanel({
         hashtags: finalTags,
       };
       const res = await TriggerUpload(req);
-      addMessage(res.success ? 'success' : 'error', res.message);
       if (res.success) {
+        addMessage('success', res.message);
+        LogFromFrontend('info', 'chat', `Upload success: ${res.message}`);
         setCaption('');
         setTags([]);
         setTagInput('');
         setSelectedFile('');
         setSelectedFileName('');
+      } else {
+        addMessage('error', res.message);
+        LogFromFrontend('error', 'chat', `Upload failed: ${res.message}`);
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       addMessage('error', `Upload error: ${msg}`);
+      LogFromFrontend('error', 'chat', `Upload exception: ${msg}`);
     }
     setUploading(false);
   };
@@ -111,20 +115,7 @@ export function ChatPanel({
       <div className="chat-header">
         <div className="chat-header-left">
           <HamburgerBtn sidebarOpen={sidebarOpen} onToggle={onToggleSidebar} />
-          <h2><span className={`status-dot ${browserStatus}`} />Browser: {browserStatus}</h2>
-        </div>
-        <div className="browser-actions">
-          {isRunning ? (
-            <button className="btn-danger" onClick={onStop} disabled={loading}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
-              {loading ? 'Stopping...' : 'Stop Browser'}
-            </button>
-          ) : (
-            <button className="btn-primary" onClick={onStart} disabled={loading}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-              {loading ? 'Starting...' : 'Start Browser'}
-            </button>
-          )}
+          <h2>Chat</h2>
         </div>
       </div>
 
@@ -137,10 +128,14 @@ export function ChatPanel({
               <path d="M2 12h20"/>
             </svg>
             <h3>Welcome to Stargrazer</h3>
-            <p>Start the browser, connect your social accounts in Settings, then upload content below.</p>
+            <p>Connect your social accounts on each platform page, then upload content below.</p>
           </div>
         ) : messages.map(msg => (
-          <div key={msg.id} className={`message ${msg.type}`}>{msg.text}</div>
+          <div key={msg.id} className={`message ${msg.type}`}>
+            {msg.text.split('\n').map((line, i) => (
+              <span key={i}>{line}{i < msg.text.split('\n').length - 1 && <br />}</span>
+            ))}
+          </div>
         ))}
         <div ref={messagesEndRef} />
       </div>
@@ -220,7 +215,7 @@ export function ChatPanel({
             <button
               className="btn-primary upload-send"
               onClick={handleSend}
-              disabled={uploading || !isRunning || selectedPlatforms.size === 0}
+              disabled={uploading || selectedPlatforms.size === 0}
             >
               {uploading ? 'Uploading...' : 'Send'}
             </button>

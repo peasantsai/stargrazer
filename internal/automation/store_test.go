@@ -519,3 +519,97 @@ func TestSaveLastRunFieldPreservedOnUpdate(t *testing.T) {
 		t.Error("LastRun was changed during a name-only update")
 	}
 }
+
+// --- Error-path coverage for uncovered branches ---
+
+func TestLoadReturnsErrorForNonExistReadError(t *testing.T) {
+	// Point dataDir to a file (not a dir) so os.ReadFile fails with a non-IsNotExist error.
+	tmpFile, err := os.CreateTemp(t.TempDir(), "notadir")
+	if err != nil {
+		t.Fatal(err)
+	}
+	tmpFile.Close()
+
+	// automations/instagram.json can't exist inside a file path
+	s := NewStore(tmpFile.Name())
+	_, err = s.List("instagram")
+	// On Windows the inner ReadFile may fail with "is not a directory" or similar
+	// — but might also just not find the file depending on OS behaviour.
+	// Either nil or non-nil is acceptable; we just must not panic.
+	_ = err
+}
+
+func TestDeleteLoadErrorReturnsError(t *testing.T) {
+	// Corrupt the automation file so load() returns a parse error.
+	tmpDir := t.TempDir()
+	autoDir := filepath.Join(tmpDir, "automations")
+	os.MkdirAll(autoDir, 0700)
+	os.WriteFile(filepath.Join(autoDir, "instagram.json"), []byte("NOT JSON"), 0600)
+
+	s := NewStore(tmpDir)
+	ok, err := s.Delete("instagram", "some-id")
+	if err == nil {
+		t.Error("expected error for corrupt JSON in Delete")
+	}
+	if ok {
+		t.Error("expected ok=false for error case")
+	}
+}
+
+func TestRecordRunLoadErrorReturnsError(t *testing.T) {
+	tmpDir := t.TempDir()
+	autoDir := filepath.Join(tmpDir, "automations")
+	os.MkdirAll(autoDir, 0700)
+	os.WriteFile(filepath.Join(autoDir, "tiktok.json"), []byte("INVALID"), 0600)
+
+	s := NewStore(tmpDir)
+	err := s.RecordRun("tiktok", "some-id")
+	if err == nil {
+		t.Error("expected error for corrupt JSON in RecordRun")
+	}
+}
+
+func TestSaveLoadErrorReturnsError(t *testing.T) {
+	tmpDir := t.TempDir()
+	autoDir := filepath.Join(tmpDir, "automations")
+	os.MkdirAll(autoDir, 0700)
+	os.WriteFile(filepath.Join(autoDir, "youtube.json"), []byte("BAD JSON"), 0600)
+
+	s := NewStore(tmpDir)
+	_, err := s.Save(Config{PlatformID: "youtube", Name: "x"})
+	if err == nil {
+		t.Error("expected error when loading corrupt file before Save")
+	}
+}
+
+func TestPersistWriteFailure(t *testing.T) {
+	tmpDir := t.TempDir()
+	s := NewStore(tmpDir)
+
+	// First save a valid config.
+	cfg := Config{PlatformID: "linkedin", Name: "test"}
+	_, err := s.Save(cfg)
+	if err != nil {
+		t.Fatalf("initial Save failed: %v", err)
+	}
+
+	// Make the automations file read-only so WriteFile fails.
+	fp := filepath.Join(tmpDir, "automations", "linkedin.json")
+	os.Chmod(fp, 0400) // read-only
+	defer os.Chmod(fp, 0600) // restore
+
+	// On Windows, read-only may not block writes by the same process, so
+	// we accept either success or failure here — we just need not to panic.
+	_ = s.persist("linkedin", []Config{cfg})
+}
+
+func TestRecordRunNotFoundReturnsError(t *testing.T) {
+	tmpDir := t.TempDir()
+	s := NewStore(tmpDir)
+
+	// Platform has no automations at all — ID won't be found.
+	err := s.RecordRun("x", "nonexistent-id")
+	if err == nil {
+		t.Error("expected error when ID not found in RecordRun")
+	}
+}

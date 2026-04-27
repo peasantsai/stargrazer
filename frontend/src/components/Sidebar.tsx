@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { View, Theme, AccountInfo } from '../types';
+import type { View, AccountInfo } from '../types';
 import { PLATFORM_ICONS, PLATFORM_IDS } from '../constants/platforms';
 import { AccountModal } from './modals/AccountModal';
 
@@ -9,8 +9,6 @@ interface Props {
   readonly browserStatus: string;
   readonly open: boolean;
   readonly onToggle: () => void;
-  readonly theme: Theme;
-  readonly setTheme: (t: Theme) => void;
   readonly account: AccountInfo;
   readonly updateAccount: (partial: Partial<AccountInfo>) => void;
 }
@@ -24,7 +22,7 @@ const PLATFORM_LABELS: Record<string, string> = {
   x: 'X',
 };
 
-export function Sidebar({ view, setView, browserStatus, open, onToggle, theme, setTheme, account, updateAccount }: Props) {
+export function Sidebar({ view, setView, browserStatus, open, onToggle, account, updateAccount }: Props) {
   const [showAccountModal, setShowAccountModal] = useState(false);
 
   if (!open) return null;
@@ -68,17 +66,6 @@ export function Sidebar({ view, setView, browserStatus, open, onToggle, theme, s
         </button>
 
         <button
-          className={`nav-btn ${view === 'schedules' ? 'active' : ''}`}
-          onClick={() => setView('schedules')}
-        >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <circle cx="12" cy="12" r="10" />
-            <polyline points="12 6 12 12 16 14" />
-          </svg>
-          Schedules
-        </button>
-
-        <button
           className={`nav-btn ${view === 'config' ? 'active' : ''}`}
           onClick={() => setView('config')}
         >
@@ -107,32 +94,6 @@ export function Sidebar({ view, setView, browserStatus, open, onToggle, theme, s
       </nav>
 
       <div className="sidebar-account">
-        <div className="theme-toggle-row">
-          <span>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <circle cx="12" cy="12" r="4" />
-              <path d="M12 2v2m0 16v2M4.93 4.93l1.41 1.41m11.32 11.32l1.41 1.41M2 12h2m16 0h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" />
-            </svg>
-            Theme
-          </span>
-          <div className="theme-switcher">
-            <button className={theme === 'dark' ? 'active' : ''} onClick={() => setTheme('dark')} aria-label="Dark theme">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
-              </svg>
-            </button>
-            <button className={theme === 'light' ? 'active' : ''} onClick={() => setTheme('light')} aria-label="Light theme">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <circle cx="12" cy="12" r="5" />
-                <line x1="12" y1="1" x2="12" y2="3" /><line x1="12" y1="21" x2="12" y2="23" />
-                <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" /><line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
-                <line x1="1" y1="12" x2="3" y2="12" /><line x1="21" y1="12" x2="23" y2="12" />
-                <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" /><line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
-              </svg>
-            </button>
-          </div>
-        </div>
-
         <button className="account-card" onClick={() => setShowAccountModal(true)}>
           <div className="account-avatar">
             {account.avatarUrl

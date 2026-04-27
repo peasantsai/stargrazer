@@ -6,7 +6,6 @@ import { useTheme } from './hooks/useTheme';
 import { useAccount } from './hooks/useAccount';
 import { Sidebar } from './components/Sidebar';
 import { ChatPanel } from './components/ChatPanel';
-import { SchedulesPanel } from './components/SchedulesPanel';
 import { ConfigPanel } from './components/ConfigPanel';
 import { PlatformPage } from './components/PlatformPage';
 
@@ -38,6 +37,13 @@ function App() {
 
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
   useEffect(() => { GetBrowserStatus().then(r => setBrowserStatus(r.status)); }, []);
+  // Poll browser status so the toggle button stays in sync (e.g. browser opened via platform page).
+  useEffect(() => {
+    const interval = setInterval(() => {
+      GetBrowserStatus().then(r => setBrowserStatus(r.status));
+    }, 3000);
+    return () => clearInterval(interval);
+  }, []);
   useEffect(() => { GetPlatforms().then(setPlatforms); }, []);
   useEffect(() => { if (view === 'chat') GetPlatforms().then(setPlatforms); }, [view]);
 
@@ -45,27 +51,18 @@ function App() {
 
   const handleStartBrowser = async () => {
     setLoading(true);
-    addMessage('system', 'Starting browser...');
     const res = await StartBrowser();
     setBrowserStatus(res.status);
-    addMessage(
-      res.status === 'running' ? 'success' : 'error',
-      res.status === 'running' ? 'Browser started. CDP active.' : `Failed: ${res.error}`,
-    );
     setLoading(false);
   };
 
   const handleStopBrowser = async () => {
     setLoading(true);
-    addMessage('system', 'Stopping browser...');
     try {
       const res = await StopBrowser();
       setBrowserStatus(res.status);
-      addMessage(res.status === 'stopped' ? 'info' : 'error',
-        res.status === 'stopped' ? 'Browser stopped.' : `Stop failed: ${res.error}`);
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      addMessage('error', `Stop error: ${msg}`);
+    } catch {
+      // logged on backend
     } finally {
       setLoading(false);
     }
@@ -76,25 +73,11 @@ function App() {
       return (
         <ChatPanel
           messages={messages}
-          browserStatus={browserStatus}
-          loading={loading}
-          onStart={handleStartBrowser}
-          onStop={handleStopBrowser}
           messagesEndRef={messagesEndRef}
           sidebarOpen={sidebarOpen}
           onToggleSidebar={() => setSidebarOpen(true)}
           platforms={platforms}
           addMessage={addMessage}
-        />
-      );
-    }
-    if (view === 'schedules') {
-      return (
-        <SchedulesPanel
-          sidebarOpen={sidebarOpen}
-          onToggleSidebar={() => setSidebarOpen(true)}
-          addMessage={addMessage}
-          platforms={platforms}
         />
       );
     }
@@ -106,7 +89,13 @@ function App() {
           onToggleSidebar={() => setSidebarOpen(true)}
           onBrowserStatusChange={setBrowserStatus}
           addMessage={addMessage}
-          refreshPlatforms={refreshPlatforms}
+          browserStatus={browserStatus}
+          loading={loading}
+          onStartBrowser={handleStartBrowser}
+          onStopBrowser={handleStopBrowser}
+          theme={theme}
+          setTheme={setTheme}
+          platforms={platforms}
         />
       );
     }
@@ -119,6 +108,8 @@ function App() {
           sidebarOpen={sidebarOpen}
           onToggleSidebar={() => setSidebarOpen(true)}
           addMessage={addMessage}
+          onBrowserStatusChange={setBrowserStatus}
+          refreshPlatforms={refreshPlatforms}
         />
       );
     }
@@ -133,8 +124,6 @@ function App() {
         browserStatus={browserStatus}
         open={sidebarOpen}
         onToggle={() => setSidebarOpen(p => !p)}
-        theme={theme}
-        setTheme={setTheme}
         account={account}
         updateAccount={updateAccount}
       />

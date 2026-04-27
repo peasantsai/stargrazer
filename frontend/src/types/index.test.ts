@@ -13,10 +13,6 @@ describe('isPlatformView', () => {
     expect(isPlatformView('chat')).toBe(false);
   });
 
-  it('returns false for schedules', () => {
-    expect(isPlatformView('schedules')).toBe(false);
-  });
-
   it('returns false for config', () => {
     expect(isPlatformView('config')).toBe(false);
   });

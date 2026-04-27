@@ -4,7 +4,7 @@
 export type Theme = 'dark' | 'light';
 
 /** Discriminated union of all navigable views. */
-export type View = 'chat' | 'schedules' | 'config' | `platform:${string}`;
+export type View = 'chat' | 'config' | `platform:${string}`;
 
 export function isPlatformView(v: View): v is `platform:${string}` {
   return v.startsWith('platform:');
@@ -16,7 +16,7 @@ export function platformIdFromView(v: View): string {
 
 export interface ChatMessage {
   id: number;
-  type: 'system' | 'info' | 'error' | 'success';
+  type: 'user' | 'system' | 'info' | 'error' | 'success';
   text: string;
 }
 

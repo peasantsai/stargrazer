@@ -11,8 +11,6 @@ const defaultProps = {
   browserStatus: 'stopped',
   open: true,
   onToggle: vi.fn(),
-  theme: 'dark' as const,
-  setTheme: vi.fn(),
   account: defaultAccount,
   updateAccount: vi.fn(),
 };
@@ -33,11 +31,6 @@ describe('Sidebar – rendering', () => {
     expect(screen.getByRole('button', { name: /chat/i })).toBeInTheDocument();
   });
 
-  it('renders Schedules nav button', () => {
-    render(<Sidebar {...defaultProps} />);
-    expect(screen.getByRole('button', { name: /schedules/i })).toBeInTheDocument();
-  });
-
   it('renders Settings nav button', () => {
     render(<Sidebar {...defaultProps} />);
     expect(screen.getByRole('button', { name: /settings/i })).toBeInTheDocument();
@@ -46,11 +39,6 @@ describe('Sidebar – rendering', () => {
   it('marks Chat button as active when view is chat', () => {
     render(<Sidebar {...defaultProps} view="chat" />);
     expect(screen.getByRole('button', { name: /chat/i })).toHaveClass('active');
-  });
-
-  it('marks Schedules button as active when view is schedules', () => {
-    render(<Sidebar {...defaultProps} view="schedules" />);
-    expect(screen.getByRole('button', { name: /schedules/i })).toHaveClass('active');
   });
 
   it('renders all 6 platform buttons', () => {
@@ -86,16 +74,6 @@ describe('Sidebar – rendering', () => {
     expect(img).not.toBeNull();
     expect(img).toHaveAttribute('src', 'https://example.com/avatar.png');
   });
-
-  it('renders dark theme button as active when theme is dark', () => {
-    render(<Sidebar {...defaultProps} theme="dark" />);
-    expect(screen.getByRole('button', { name: /dark theme/i })).toHaveClass('active');
-  });
-
-  it('renders light theme button as active when theme is light', () => {
-    render(<Sidebar {...defaultProps} theme="light" />);
-    expect(screen.getByRole('button', { name: /light theme/i })).toHaveClass('active');
-  });
 });
 
 describe('Sidebar – interactions', () => {
@@ -104,13 +82,6 @@ describe('Sidebar – interactions', () => {
     render(<Sidebar {...defaultProps} setView={setView} />);
     fireEvent.click(screen.getByRole('button', { name: /chat/i }));
     expect(setView).toHaveBeenCalledWith('chat');
-  });
-
-  it('calls setView("schedules") when Schedules is clicked', () => {
-    const setView = vi.fn();
-    render(<Sidebar {...defaultProps} setView={setView} />);
-    fireEvent.click(screen.getByRole('button', { name: /schedules/i }));
-    expect(setView).toHaveBeenCalledWith('schedules');
   });
 
   it('calls setView("config") when Settings is clicked', () => {
@@ -132,20 +103,6 @@ describe('Sidebar – interactions', () => {
     render(<Sidebar {...defaultProps} onToggle={onToggle} />);
     fireEvent.click(screen.getByRole('button', { name: /close sidebar/i }));
     expect(onToggle).toHaveBeenCalled();
-  });
-
-  it('calls setTheme("light") when light theme button is clicked', () => {
-    const setTheme = vi.fn();
-    render(<Sidebar {...defaultProps} setTheme={setTheme} />);
-    fireEvent.click(screen.getByRole('button', { name: /light theme/i }));
-    expect(setTheme).toHaveBeenCalledWith('light');
-  });
-
-  it('calls setTheme("dark") when dark theme button is clicked', () => {
-    const setTheme = vi.fn();
-    render(<Sidebar {...defaultProps} theme="light" setTheme={setTheme} />);
-    fireEvent.click(screen.getByRole('button', { name: /dark theme/i }));
-    expect(setTheme).toHaveBeenCalledWith('dark');
   });
 
   it('opens AccountModal when account card is clicked', () => {

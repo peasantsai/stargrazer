@@ -3,10 +3,9 @@ import {
   GetBrowserConfig, UpdateBrowserConfig, ResetBrowserConfig,
   GetBrowserStatus, RestartBrowser,
 } from '../../wailsjs/go/main/App';
-import type { ChatMessage, BrowserConfigResponse } from '../types';
+import type { ChatMessage, BrowserConfigResponse, PlatformResponse, Theme } from '../types';
 import { CHROMIUM_FLAGS } from '../constants/chromiumFlags';
 import { HamburgerBtn } from './HamburgerBtn';
-import { SocialMediaSection } from './settings/SocialMediaSection';
 import { LogsModal } from './modals/LogsModal';
 
 function isKnownFlag(f: string): boolean {
@@ -19,11 +18,18 @@ interface Props {
   readonly onToggleSidebar: () => void;
   readonly onBrowserStatusChange: (s: string) => void;
   readonly addMessage: (type: ChatMessage['type'], text: string) => void;
-  readonly refreshPlatforms: () => void;
+  readonly browserStatus: string;
+  readonly loading: boolean;
+  readonly onStartBrowser: () => void;
+  readonly onStopBrowser: () => void;
+  readonly theme: Theme;
+  readonly setTheme: (t: Theme) => void;
+  readonly platforms: PlatformResponse[];
 }
 
 export function ConfigPanel({
-  onSaved, sidebarOpen, onToggleSidebar, onBrowserStatusChange, addMessage, refreshPlatforms,
+  onSaved, sidebarOpen, onToggleSidebar, onBrowserStatusChange, addMessage,
+  browserStatus, loading, onStartBrowser, onStopBrowser, theme, setTheme, platforms,
 }: Props) {
   const [config, setConfig] = useState<BrowserConfigResponse | null>(null);
   const [saving, setSaving] = useState(false);
@@ -101,15 +107,17 @@ export function ConfigPanel({
 
   if (!config) return <div className="config-panel"><p>Loading...</p></div>;
 
+  const isRunning = browserStatus === 'running';
+  const connectedPlatforms = platforms.filter(p => p.loggedIn).length;
   const activeFlags = config.extraFlags ?? [];
   const activeCount = activeFlags.length;
   const q = search.toLowerCase().trim();
   const match = (...terms: string[]) => !q || terms.some(t => t.toLowerCase().includes(q));
 
-  const showSocial = match('social', 'media', 'connection', 'facebook', 'instagram', 'tiktok', 'youtube', 'linkedin', 'login', 'account');
   const showConnection = match('connection', 'cdp', 'port', 'chromium', 'path', 'user data', 'directory');
   const showDisplay = match('display', 'headless', 'window', 'width', 'height');
   const showCustomFlags = match('custom', 'flags', 'extra', 'additional');
+  const showTheme = match('theme', 'dark', 'light', 'appearance');
   const filteredFlagGroups = CHROMIUM_FLAGS
     .map(g => {
       if (!q) return { ...g, filteredFlags: g.flags };
@@ -123,7 +131,7 @@ export function ConfigPanel({
     })
     .filter(g => g.filteredFlags.length > 0);
   const showFlags = filteredFlagGroups.length > 0 || match('chromium', 'flags');
-  const noResults = q && !showSocial && !showConnection && !showDisplay && !showFlags && !showCustomFlags;
+  const noResults = q && !showConnection && !showDisplay && !showFlags && !showCustomFlags && !showTheme;
 
   return (
     <div className="config-panel">
@@ -138,6 +146,34 @@ export function ConfigPanel({
             <polyline points="10 9 9 9 8 9"/>
           </svg>
         </button>
+      </div>
+
+      {/* Stats bar */}
+      <div className="settings-stats">
+        <div className="settings-stat">
+          <span className={`status-dot ${browserStatus}`} />
+          <span className="settings-stat-label">Browser</span>
+          <span className="settings-stat-value">{browserStatus}</span>
+        </div>
+        <div className="settings-stat">
+          <span className="settings-stat-label">Platforms</span>
+          <span className="settings-stat-value">{connectedPlatforms}/{platforms.length} connected</span>
+        </div>
+        <div className="settings-stat">
+          <span className="settings-stat-label">Flags</span>
+          <span className="settings-stat-value">{activeCount} active</span>
+        </div>
+        <div className="settings-stat-actions">
+          {isRunning ? (
+            <button className="btn-danger" onClick={onStopBrowser} disabled={loading} style={{ padding: '6px 14px', fontSize: 12 }}>
+              {loading ? 'Stopping...' : 'Stop Browser'}
+            </button>
+          ) : (
+            <button className="btn-primary" onClick={onStartBrowser} disabled={loading} style={{ padding: '6px 14px', fontSize: 12 }}>
+              {loading ? 'Starting...' : 'Start Browser'}
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="config-search">
@@ -162,12 +198,37 @@ export function ConfigPanel({
 
       {noResults && <div className="config-no-results">No settings match "{search}"</div>}
 
-      {showSocial && (
-        <SocialMediaSection
-          onBrowserStatusChange={onBrowserStatusChange}
-          addMessage={addMessage}
-          refreshPlatforms={refreshPlatforms}
-        />
+      {showTheme && (
+        <div className="config-section">
+          <h3>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="12" cy="12" r="4" />
+              <path d="M12 2v2m0 16v2M4.93 4.93l1.41 1.41m11.32 11.32l1.41 1.41M2 12h2m16 0h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" />
+            </svg>
+            Appearance
+          </h3>
+          <div className="config-field">
+            <span className="config-field-label">Theme</span>
+            <div className="theme-switcher" style={{ alignSelf: 'flex-start' }}>
+              <button className={theme === 'dark' ? 'active' : ''} onClick={() => setTheme('dark')} aria-label="Dark theme">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+                </svg>
+                Dark
+              </button>
+              <button className={theme === 'light' ? 'active' : ''} onClick={() => setTheme('light')} aria-label="Light theme">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <circle cx="12" cy="12" r="5" />
+                  <line x1="12" y1="1" x2="12" y2="3" /><line x1="12" y1="21" x2="12" y2="23" />
+                  <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" /><line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+                  <line x1="1" y1="12" x2="3" y2="12" /><line x1="21" y1="12" x2="23" y2="12" />
+                  <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" /><line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+                </svg>
+                Light
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {showConnection && (

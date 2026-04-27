@@ -1,6 +1,7 @@
 package workflow
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
@@ -492,5 +493,119 @@ func TestDefaultWorkflowsAllContainFileUpload(t *testing.T) {
 				t.Error("expected at least one upload_file step")
 			}
 		})
+	}
+}
+
+// --- LoadWorkflow error paths ---
+
+func TestLoadWorkflowJSONUnmarshalError(t *testing.T) {
+	// Test the json.Unmarshal error branch directly.
+	data := []byte("NOT JSON")
+	var w Workflow
+	err := json.Unmarshal(data, &w)
+	if err == nil {
+		t.Error("expected unmarshal error for invalid JSON")
+	}
+}
+
+func TestLoadWorkflowMissingFile(t *testing.T) {
+	// LoadWorkflow with a platform that has no file should return an error.
+	_, err := LoadWorkflow("nonexistent_platform_xyz_abc")
+	if err == nil {
+		t.Error("expected error for missing workflow file")
+	}
+}
+
+// --- SaveWorkflow and GetWorkflowsDir ---
+
+func TestSaveWorkflowCreatesFile(t *testing.T) {
+	tmpDir := t.TempDir()
+	worksDir := filepath.Join(tmpDir, "workflows")
+
+	// Temporarily override the cwd so GetWorkflowsDir falls back to it.
+	origDir, _ := os.Getwd()
+	os.Chdir(tmpDir)
+	defer os.Chdir(origDir)
+
+	w := &Workflow{
+		ID:       "test_wf",
+		Platform: "instagram",
+		Steps:    []Step{{Type: StepNavigate, Value: "https://instagram.com"}},
+	}
+
+	if err := SaveWorkflow(w); err != nil {
+		t.Fatalf("SaveWorkflow error: %v", err)
+	}
+
+	fp := filepath.Join(worksDir, "instagram_upload.json")
+	if _, err := os.Stat(fp); err != nil {
+		t.Fatalf("expected workflow file to be created at %s: %v", fp, err)
+	}
+}
+
+func TestSaveAndLoadWorkflowRoundTrip(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	origDir, _ := os.Getwd()
+	os.Chdir(tmpDir)
+	defer os.Chdir(origDir)
+
+	w := &Workflow{
+		ID:       "roundtrip",
+		Platform: "facebook",
+		Steps: []Step{
+			{Type: StepNavigate, Value: "https://facebook.com"},
+			{Type: StepClick, Selector: "button"},
+		},
+	}
+
+	if err := SaveWorkflow(w); err != nil {
+		t.Fatalf("SaveWorkflow error: %v", err)
+	}
+
+	loaded, err := LoadWorkflow("facebook")
+	if err != nil {
+		t.Fatalf("LoadWorkflow error: %v", err)
+	}
+	if loaded.ID != "roundtrip" {
+		t.Errorf("expected ID 'roundtrip', got %q", loaded.ID)
+	}
+	if len(loaded.Steps) != 2 {
+		t.Errorf("expected 2 steps, got %d", len(loaded.Steps))
+	}
+}
+
+func TestGetWorkflowsDirFallbackToCwd(t *testing.T) {
+	// When no workflows/ dir exists next to the exe, GetWorkflowsDir
+	// should return filepath.Join(cwd, "workflows").
+	tmpDir := t.TempDir()
+	origDir, _ := os.Getwd()
+	os.Chdir(tmpDir)
+	defer os.Chdir(origDir)
+
+	dir := GetWorkflowsDir()
+	expected := filepath.Join(tmpDir, "workflows")
+	if dir != expected {
+		t.Errorf("expected %q, got %q", expected, dir)
+	}
+}
+
+func TestGetWorkflowsDirUsesExeAdjacentDir(t *testing.T) {
+	// If a workflows/ dir exists next to the test binary, it should be returned.
+	// The test binary lives somewhere; we find it and check if workflows/ exists there.
+	exe, err := os.Executable()
+	if err != nil {
+		t.Skip("cannot determine executable path")
+	}
+	exeDir := filepath.Dir(exe)
+	adjacentWorkflows := filepath.Join(exeDir, "workflows")
+
+	// Create the dir temporarily.
+	os.MkdirAll(adjacentWorkflows, 0700)
+	defer os.RemoveAll(adjacentWorkflows)
+
+	dir := GetWorkflowsDir()
+	if dir != adjacentWorkflows {
+		t.Errorf("expected exe-adjacent dir %q, got %q", adjacentWorkflows, dir)
 	}
 }

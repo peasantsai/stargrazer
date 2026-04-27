@@ -6,26 +6,31 @@ interface Props {
   readonly onClose: () => void;
 }
 
+const LEVEL_FILTERS = ['all', 'info', 'warn', 'error', 'debug'] as const;
+
 export function LogsModal({ onClose }: Props) {
   const [logs, setLogs] = useState<LogEntryResponse[]>([]);
   const [filter, setFilter] = useState('');
+  const [levelFilter, setLevelFilter] = useState<string>('all');
+  const [autoScroll, setAutoScroll] = useState(true);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     GetLogs().then(setLogs);
-    const interval = setInterval(() => { GetLogs().then(setLogs); }, 2000);
+    const interval = setInterval(() => { GetLogs().then(setLogs); }, 1500);
     return () => clearInterval(interval);
   }, []);
 
-  useEffect(() => { bottomRef.current?.scrollIntoView(); }, [logs]);
+  useEffect(() => {
+    if (autoScroll) bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [logs, autoScroll]);
 
-  const filtered = filter
-    ? logs.filter(l =>
-        l.level === filter ||
-        l.source.includes(filter) ||
-        l.message.toLowerCase().includes(filter.toLowerCase())
-      )
-    : logs;
+  const filtered = logs.filter(l => {
+    if (levelFilter !== 'all' && l.level !== levelFilter) return false;
+    if (!filter) return true;
+    const q = filter.toLowerCase();
+    return l.source.toLowerCase().includes(q) || l.message.toLowerCase().includes(q);
+  });
 
   const handleExport = async () => {
     const json = await ExportLogs();
@@ -53,9 +58,10 @@ export function LogsModal({ onClose }: Props) {
       <div className="modal-content logs-modal">
         <div className="modal-header">
           <h3>Application Logs</h3>
-          <div style={{ display: 'flex', gap: 8 }}>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{filtered.length} entries</span>
             <button className="btn-secondary" style={{ padding: '6px 12px', fontSize: 12 }} onClick={handleExport}>
-              Export JSON
+              Export
             </button>
             <button className="btn-secondary" style={{ padding: '6px 12px', fontSize: 12 }} onClick={handleClear}>
               Clear
@@ -67,20 +73,39 @@ export function LogsModal({ onClose }: Props) {
             </button>
           </div>
         </div>
-        <div style={{ padding: '0 20px 8px' }}>
+        <div className="logs-toolbar">
+          <div className="logs-level-filters">
+            {LEVEL_FILTERS.map(lv => (
+              <button
+                key={lv}
+                className={`logs-level-btn ${levelFilter === lv ? 'active' : ''} ${lv !== 'all' ? `logs-level-btn-${lv}` : ''}`}
+                onClick={() => setLevelFilter(lv)}
+              >
+                {lv.toUpperCase()}
+              </button>
+            ))}
+          </div>
           <input
             className="config-search-input"
-            placeholder="Filter logs..."
+            placeholder="Filter by source or message..."
             value={filter}
             onChange={e => setFilter(e.target.value)}
-            style={{ width: '100%', fontSize: 12 }}
+            style={{ flex: 1, fontSize: 12, padding: '6px 12px' }}
           />
+          <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--text-secondary)', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+            <input type="checkbox" checked={autoScroll} onChange={e => setAutoScroll(e.target.checked)} style={{ accentColor: 'var(--accent)' }} />
+            Auto-scroll
+          </label>
         </div>
         <div className="logs-body">
-          {filtered.map((l, i) => (
+          {filtered.length === 0 ? (
+            <div style={{ padding: 24, textAlign: 'center', color: 'var(--text-secondary)' }}>
+              {logs.length === 0 ? 'No logs yet.' : 'No logs match the current filter.'}
+            </div>
+          ) : filtered.map((l, i) => (
             <div key={`${l.timestamp}-${l.source}-${i}`} className={`log-entry log-${l.level}`}>
-              <span className="log-time">{new Date(l.timestamp).toLocaleTimeString()}</span>
-              <span className={`log-level log-level-${l.level}`}>{l.level.toUpperCase()}</span>
+              <span className="log-time">{new Date(l.timestamp).toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit', fractionalSecondDigits: 3 } as Intl.DateTimeFormatOptions)}</span>
+              <span className={`log-level log-level-${l.level}`}>{l.level.toUpperCase().padEnd(5)}</span>
               <span className="log-source">[{l.source}]</span>
               <span className="log-msg">{l.message}</span>
             </div>

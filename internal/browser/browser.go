@@ -688,8 +688,15 @@ func (m *Manager) NavigateToURL(targetURL string) error {
 // Returns the new target ID.
 func (m *Manager) OpenNewTab(targetURL string) (string, error) {
 	port := config.GetBrowser().CDPPort
-	// Use the /json/new endpoint to create a new tab
-	resp, err := httpClient.Get(fmt.Sprintf("http://127.0.0.1:%d/json/new?%s", port, url.QueryEscape(targetURL)))
+	endpoint := fmt.Sprintf("http://127.0.0.1:%d/json/new", port)
+	if targetURL != "" {
+		endpoint += "?" + targetURL
+	}
+	req, err := http.NewRequest(http.MethodPut, endpoint, nil)
+	if err != nil {
+		return "", fmt.Errorf("creating new tab request: %w", err)
+	}
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("creating new tab: %w", err)
 	}
@@ -697,9 +704,20 @@ func (m *Manager) OpenNewTab(targetURL string) (string, error) {
 	body, _ := io.ReadAll(resp.Body)
 	var target cdpTarget
 	if err := json.Unmarshal(body, &target); err != nil {
-		return "", fmt.Errorf("parsing new tab response: %w", err)
+		return "", fmt.Errorf("open tab failed (status %d): %s", resp.StatusCode, string(body[:min(len(body), 200)]))
 	}
 	return target.ID, nil
+}
+
+// CloseTab closes a browser tab by its target ID.
+func (m *Manager) CloseTab(targetID string) error {
+	port := config.GetBrowser().CDPPort
+	resp, err := httpClient.Get(fmt.Sprintf("http://127.0.0.1:%d/json/close/%s", port, targetID))
+	if err != nil {
+		return fmt.Errorf("closing tab: %w", err)
+	}
+	resp.Body.Close()
+	return nil
 }
 
 // HasCookies checks if specific cookie names exist for the given domains.
@@ -787,34 +805,72 @@ func LoadCookiesFromDisk(platform, dataDir string) ([]CDPCookie, error) {
 
 // --- Automation step execution via CDP ---
 
+// selectorToJS converts a Chrome Recorder selector string into a JS expression
+// that returns the matching DOM element, or null if not found.
+// Supports: CSS selectors, aria/<role>, xpath/<expr>, text/<content>, pierce/<css>.
+func selectorToJS(selector string) string {
+	switch {
+	case strings.HasPrefix(selector, "aria/"):
+		label := strings.TrimPrefix(selector, "aria/")
+		// Strip trailing ARIA attribute selectors like [role="none"]
+		if idx := strings.Index(label, "["); idx > 0 {
+			label = strings.TrimSpace(label[:idx])
+		}
+		return fmt.Sprintf(`document.querySelector('[aria-label=%q]') || Array.from(document.querySelectorAll('[role]')).find(el => el.textContent.trim().includes(%q))`, label, label)
+	case strings.HasPrefix(selector, "xpath/"):
+		expr := strings.TrimPrefix(selector, "xpath/")
+		return fmt.Sprintf(`document.evaluate(%q, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue`, expr)
+	case strings.HasPrefix(selector, "text/"):
+		text := strings.TrimPrefix(selector, "text/")
+		return fmt.Sprintf(`Array.from(document.querySelectorAll('*')).find(el => el.childElementCount === 0 && el.textContent.trim().includes(%q))`, text)
+	case strings.HasPrefix(selector, "pierce/"):
+		// pierce/ is just a CSS selector that crosses shadow DOM; treat as regular CSS
+		css := strings.TrimPrefix(selector, "pierce/")
+		return fmt.Sprintf(`document.querySelector(%q)`, css)
+	default:
+		// Regular CSS selector
+		return fmt.Sprintf(`document.querySelector(%q)`, selector)
+	}
+}
+
 // ClickElement clicks the first DOM element matching selector in the active page.
+// Supports CSS, aria/, xpath/, text/, and pierce/ selector prefixes.
 func (m *Manager) ClickElement(selector string) error {
 	wsURL, err := m.findAnyPageTarget()
 	if err != nil {
 		return err
 	}
-	js := fmt.Sprintf(`(function(){const el=document.querySelector(%q);if(!el)throw new Error("selector not found: %s");el.click();})()`, selector, selector)
+	findExpr := selectorToJS(selector)
+	js := fmt.Sprintf(`(function(){const el=%s;if(!el)throw new Error("selector not found: %s");el.scrollIntoView({block:'center'});el.click();return 'clicked';})()`, findExpr, selector)
 	_, err = m.cdpEval(wsURL, js)
 	return err
 }
 
 // TypeText sets the value of the first element matching selector and dispatches an input event.
+// Supports CSS, aria/, xpath/, text/, and pierce/ selector prefixes.
+// Handles both regular inputs/textareas and contentEditable elements.
 func (m *Manager) TypeText(selector, text string) error {
 	wsURL, err := m.findAnyPageTarget()
 	if err != nil {
 		return err
 	}
-	// Use native setter so React/Vue controlled inputs receive the change.
+	findExpr := selectorToJS(selector)
 	js := fmt.Sprintf(`(function(){
-		const el = document.querySelector(%q);
+		const el = %s;
 		if (!el) throw new Error("selector not found: %s");
 		el.focus();
-		const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype,'value')?.set
-			?? Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype,'value')?.set;
-		if (setter) { setter.call(el, %q); } else { el.value = %q; el.textContent = %q; }
-		el.dispatchEvent(new Event('input', {bubbles:true}));
-		el.dispatchEvent(new Event('change', {bubbles:true}));
-	})()`, selector, selector, text, text, text)
+		if (el.isContentEditable) {
+			el.textContent = %q;
+			el.dispatchEvent(new InputEvent('input', {bubbles:true, inputType:'insertText', data:%q}));
+		} else {
+			const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype,'value')?.set
+				?? Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype,'value')?.set;
+			if (setter) { setter.call(el, %q); } else { el.value = %q; }
+			el.dispatchEvent(new Event('input', {bubbles:true}));
+			el.dispatchEvent(new Event('change', {bubbles:true}));
+		}
+		return 'typed';
+	})()`, findExpr, selector, text, text, text, text)
 	_, err = m.cdpEval(wsURL, js)
 	return err
 }
@@ -833,12 +889,14 @@ func (m *Manager) EvaluateExpression(expression string) (string, error) {
 }
 
 // ScrollToElement scrolls the first element matching selector into the viewport.
+// Supports CSS, aria/, xpath/, text/, and pierce/ selector prefixes.
 func (m *Manager) ScrollToElement(selector string) error {
 	wsURL, err := m.findAnyPageTarget()
 	if err != nil {
 		return err
 	}
-	js := fmt.Sprintf(`document.querySelector(%q)?.scrollIntoView({behavior:'smooth',block:'center'})`, selector)
+	findExpr := selectorToJS(selector)
+	js := fmt.Sprintf(`(function(){const el=%s;if(el)el.scrollIntoView({behavior:'smooth',block:'center'});return 'scrolled';})()`, findExpr)
 	_, err = m.cdpEval(wsURL, js)
 	return err
 }

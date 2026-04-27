@@ -33,6 +33,8 @@ export function GetSchedules():Promise<Array<main.ScheduleResponse>>;
 
 export function ImportCookies(arg1:string,arg2:string):Promise<main.PlatformResponse>;
 
+export function LogFromFrontend(arg1:string,arg2:string,arg3:string):Promise<void>;
+
 export function OpenPlatform(arg1:string):Promise<main.BrowserStatusResponse>;
 
 export function PauseSchedule(arg1:string):Promise<main.ScheduleResponse>;
@@ -54,6 +56,8 @@ export function SelectFile():Promise<string>;
 export function StartBrowser():Promise<main.BrowserStatusResponse>;
 
 export function StopBrowser():Promise<main.BrowserStatusResponse>;
+
+export function TestAutomation(arg1:string,arg2:string):Promise<main.RunAutomationResponse>;
 
 export function TriggerUpload(arg1:workflow.UploadRequest):Promise<main.UploadResponse>;
 
