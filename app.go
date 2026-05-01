@@ -8,7 +8,6 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"strconv"
 	"strings"
 	"time"
 
@@ -845,38 +844,14 @@ func (a *App) TestAutomation(platformID, id string) RunAutomationResponse {
 	return RunAutomationResponse{Success: true, Message: msg}
 }
 
-// executeStep dispatches a single automation step via the chromedp execution engine.
-// Uses multi-selector fallback: tries each selector from the Chrome Recorder
-// selectors array (prioritizing ARIA/text for stability) until one works.
+// executeStep dispatches a single automation step via the registered StepHandler.
+// Per-step logging stays here; the chromedp/CDP work lives in internal/browser/steps.go.
 func (a *App) executeStep(ctx context.Context, index int, step automation.Step) error {
-	stepNum := index + 1
-	switch step.Action {
-	case automation.ActionNavigate:
-		logger.Info("automation", fmt.Sprintf("  step %d: navigate → %s", stepNum, step.Target))
-		return a.browser.ExecNavigate(ctx, step.Target)
-	case automation.ActionClick:
-		logger.Info("automation", fmt.Sprintf("  step %d: click → %s (%d selector groups)", stepNum, truncSel(step), countSelectors(step)))
-		return a.browser.ExecClick(ctx, step.Target, step.Selectors)
-	case automation.ActionType:
-		logger.Info("automation", fmt.Sprintf("  step %d: type → %s value=%q (%d selector groups)", stepNum, truncSel(step), step.Value, countSelectors(step)))
-		return a.browser.ExecType(ctx, step.Target, step.Value, step.Selectors)
-	case automation.ActionWait:
-		ms := 1000
-		if n, err := strconv.Atoi(step.Value); err == nil && n > 0 {
-			ms = n
-		}
-		logger.Info("automation", fmt.Sprintf("  step %d: wait %dms", stepNum, ms))
-		time.Sleep(time.Duration(ms) * time.Millisecond)
-		return nil
-	case automation.ActionEvaluate:
-		logger.Info("automation", fmt.Sprintf("  step %d: evaluate JS (%d chars)", stepNum, len(step.Value)))
-		return a.browser.ExecEvaluate(ctx, step.Value)
-	case automation.ActionScroll:
-		logger.Info("automation", fmt.Sprintf("  step %d: scroll → %s (%d selector groups)", stepNum, truncSel(step), countSelectors(step)))
-		return a.browser.ExecScroll(ctx, step.Target, step.Selectors)
-	default:
-		return fmt.Errorf("unknown action: %q", step.Action)
+	logger.Info("automation", fmt.Sprintf("  step %d: %s → %s", index+1, step.Action, truncSel(step)))
+	if err := browser.RunStep(ctx, a.browser, step); err != nil {
+		return fmt.Errorf("%s: %w", step.Action, err)
 	}
+	return nil
 }
 
 func truncSel(s automation.Step) string {
