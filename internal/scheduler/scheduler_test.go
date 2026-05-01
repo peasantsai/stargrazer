@@ -1,51 +1,43 @@
 package scheduler
 
 import (
-	"encoding/json"
-	"os"
-	"path/filepath"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
 	"stargrazer/internal/browser"
+	"stargrazer/internal/db/dbtest"
 	"stargrazer/internal/social"
 )
 
-// newTestScheduler creates a fresh Scheduler with a temp file for persistence,
-// bypassing the singleton. It also starts the cron runner.
+// newTestScheduler creates a fresh Scheduler backed by an in-memory SQLite
+// repo, bypassing the singleton.
 func newTestScheduler(t *testing.T) *Scheduler {
 	t.Helper()
-	tmpDir := t.TempDir()
-	fp := filepath.Join(tmpDir, "schedules.json")
 
 	// Reset browser singleton for test.
 	browser.GetInstance()
 
 	s := &Scheduler{
 		jobs:     make(map[string]*Job),
-		filePath: fp,
+		repo:     NewSQLiteRepo(dbtest.NewMemDB(t)),
 		browser:  browser.GetInstance(),
-		sessions: &social.SessionStore{},
+		sessions: social.NewSQLiteSessionRepo(dbtest.NewMemDB(t)),
 	}
 	return s
 }
 
 func TestGetInstanceReturnsSingleton(t *testing.T) {
 	// Reset singleton for test isolation.
-	once = sync.Once{}
-	instance = nil
-	defer func() {
-		once = sync.Once{}
-		instance = nil
-	}()
+	resetSchedulerForTest()
+	defer resetSchedulerForTest()
 
 	b := browser.GetInstance()
-	ss := social.NewSessionStore()
+	ss := social.NewSQLiteSessionRepo(dbtest.NewMemDB(t))
+	repo := NewSQLiteRepo(dbtest.NewMemDB(t))
 
-	s1 := GetInstance(b, ss)
-	s2 := GetInstance(b, ss)
+	s1 := GetInstance(b, ss, repo)
+	s2 := GetInstance(b, ss, repo)
 	if s1 != s2 {
 		t.Error("GetInstance() returned different pointers")
 	}
@@ -367,27 +359,31 @@ func TestJobStatusConstants(t *testing.T) {
 }
 
 func TestPersistAndLoad(t *testing.T) {
-	tmpDir := t.TempDir()
-	fp := filepath.Join(tmpDir, "schedules.json")
+	mem := dbtest.NewMemDB(t)
+	repo := NewSQLiteRepo(mem)
 
 	s1 := &Scheduler{
-		jobs:     make(map[string]*Job),
-		filePath: fp,
-		browser:  browser.GetInstance(),
+		jobs:    make(map[string]*Job),
+		repo:    repo,
+		browser: browser.GetInstance(),
 	}
 
 	s1.Create(Job{Name: "Persist Test", Type: JobTypeKeepAlive, CronExpr: "0 */12 * * *"})
 
-	// Verify file was written.
-	if _, err := os.Stat(fp); err != nil {
-		t.Fatalf("schedules file not created: %v", err)
+	// Verify the row was written by listing through the repo directly.
+	got, err := repo.List()
+	if err != nil {
+		t.Fatalf("repo.List: %v", err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("expected 1 persisted job, got %d", len(got))
 	}
 
-	// Create a new scheduler pointing to the same file and load.
+	// Create a fresh scheduler bound to the same DB and load through it.
 	s2 := &Scheduler{
-		jobs:     make(map[string]*Job),
-		filePath: fp,
-		browser:  browser.GetInstance(),
+		jobs:    make(map[string]*Job),
+		repo:    NewSQLiteRepo(mem),
+		browser: browser.GetInstance(),
 	}
 	s2.load()
 
@@ -460,26 +456,24 @@ func TestStopWithNilCronRunner(t *testing.T) {
 }
 
 func TestStartLoadsPersistedJobs(t *testing.T) {
-	tmpDir := t.TempDir()
-	fp := filepath.Join(tmpDir, "schedules.json")
+	repo := NewSQLiteRepo(dbtest.NewMemDB(t))
 
-	// Pre-create a persisted job
-	jobs := []*Job{
-		{
-			ID:       "persisted-1",
-			Name:     "Persisted Job",
-			Type:     JobTypeKeepAlive,
-			CronExpr: "0 */12 * * *",
-			Status:   JobStatusActive,
-		},
+	// Pre-persist a job through the repo directly.
+	if err := repo.Save(&Job{
+		ID:        "persisted-1",
+		Name:      "Persisted Job",
+		Type:      JobTypeKeepAlive,
+		CronExpr:  "0 */12 * * *",
+		Status:    JobStatusActive,
+		CreatedAt: time.Now(),
+	}); err != nil {
+		t.Fatalf("seed save: %v", err)
 	}
-	data, _ := json.MarshalIndent(jobs, "", "  ")
-	os.WriteFile(fp, data, 0600)
 
 	s := &Scheduler{
-		jobs:     make(map[string]*Job),
-		filePath: fp,
-		browser:  browser.GetInstance(),
+		jobs:    make(map[string]*Job),
+		repo:    repo,
+		browser: browser.GetInstance(),
 	}
 
 	s.Start()
@@ -499,21 +493,27 @@ func TestStartLoadsPersistedJobs(t *testing.T) {
 }
 
 func TestStartRegistersActiveJobs(t *testing.T) {
-	tmpDir := t.TempDir()
-	fp := filepath.Join(tmpDir, "schedules.json")
+	repo := NewSQLiteRepo(dbtest.NewMemDB(t))
 
-	// Pre-create an active and a paused job
-	jobs := []*Job{
-		{ID: "active-1", Name: "Active", Type: JobTypeKeepAlive, CronExpr: "0 */12 * * *", Status: JobStatusActive},
-		{ID: "paused-1", Name: "Paused", Type: JobTypeKeepAlive, CronExpr: "0 */6 * * *", Status: JobStatusPaused},
+	// Pre-persist an active and a paused job through the repo.
+	now := time.Now()
+	if err := repo.Save(&Job{
+		ID: "active-1", Name: "Active", Type: JobTypeKeepAlive,
+		CronExpr: "0 */12 * * *", Status: JobStatusActive, CreatedAt: now,
+	}); err != nil {
+		t.Fatalf("seed active: %v", err)
 	}
-	data, _ := json.MarshalIndent(jobs, "", "  ")
-	os.WriteFile(fp, data, 0600)
+	if err := repo.Save(&Job{
+		ID: "paused-1", Name: "Paused", Type: JobTypeKeepAlive,
+		CronExpr: "0 */6 * * *", Status: JobStatusPaused, CreatedAt: now,
+	}); err != nil {
+		t.Fatalf("seed paused: %v", err)
+	}
 
 	s := &Scheduler{
-		jobs:     make(map[string]*Job),
-		filePath: fp,
-		browser:  browser.GetInstance(),
+		jobs:    make(map[string]*Job),
+		repo:    repo,
+		browser: browser.GetInstance(),
 	}
 
 	s.Start()
@@ -826,34 +826,17 @@ func TestExecuteUnknownJobType(t *testing.T) {
 	}
 }
 
-// --- Load with invalid data ---
+// --- Load with empty repo ---
 
-func TestLoadInvalidJSON(t *testing.T) {
-	tmpDir := t.TempDir()
-	fp := filepath.Join(tmpDir, "schedules.json")
-	os.WriteFile(fp, []byte("not valid json {["), 0600)
-
+func TestLoadEmptyRepo(t *testing.T) {
 	s := &Scheduler{
-		jobs:     make(map[string]*Job),
-		filePath: fp,
-		browser:  browser.GetInstance(),
-	}
-	s.load()
-	// Should not crash, jobs should be empty
-	if len(s.jobs) != 0 {
-		t.Errorf("expected 0 jobs after invalid JSON load, got %d", len(s.jobs))
-	}
-}
-
-func TestLoadMissingFile(t *testing.T) {
-	s := &Scheduler{
-		jobs:     make(map[string]*Job),
-		filePath: "/nonexistent/path/schedules.json",
-		browser:  browser.GetInstance(),
+		jobs:    make(map[string]*Job),
+		repo:    NewSQLiteRepo(dbtest.NewMemDB(t)),
+		browser: browser.GetInstance(),
 	}
 	s.load()
 	if len(s.jobs) != 0 {
-		t.Errorf("expected 0 jobs for missing file, got %d", len(s.jobs))
+		t.Errorf("expected 0 jobs from empty repo, got %d", len(s.jobs))
 	}
 }
 
@@ -913,20 +896,24 @@ func TestUnregisterJobNilCronRunner(t *testing.T) {
 
 // --- Persist tests ---
 
-func TestPersistCreatesDirectory(t *testing.T) {
-	tmpDir := t.TempDir()
-	fp := filepath.Join(tmpDir, "subdir", "deep", "schedules.json")
-
+func TestPersistJobWritesThroughRepo(t *testing.T) {
+	repo := NewSQLiteRepo(dbtest.NewMemDB(t))
 	s := &Scheduler{
-		jobs:     make(map[string]*Job),
-		filePath: fp,
-		browser:  browser.GetInstance(),
+		jobs:    make(map[string]*Job),
+		repo:    repo,
+		browser: browser.GetInstance(),
 	}
 
-	s.jobs["test"] = &Job{ID: "test", Name: "Persist Dir Test"}
-	s.persist()
+	j := &Job{ID: "test", Name: "Persist Job Test", Type: JobTypeKeepAlive,
+		CronExpr: "0 */12 * * *", Status: JobStatusActive, CreatedAt: time.Now()}
+	s.jobs[j.ID] = j
+	s.persistJob(j)
 
-	if _, err := os.Stat(fp); err != nil {
-		t.Fatalf("persist did not create file: %v", err)
+	got, err := repo.Get("test")
+	if err != nil {
+		t.Fatalf("repo.Get: %v", err)
+	}
+	if got.Name != "Persist Job Test" {
+		t.Errorf("expected name 'Persist Job Test', got %q", got.Name)
 	}
 }

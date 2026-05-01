@@ -27,18 +27,13 @@ func TestExecutePanicRecovery(t *testing.T) {
 	}
 }
 
-// --- persist with unwritable path ---
+// --- persistDelete on missing row is handled ---
 
-func TestPersistWriteErrorIsHandled(t *testing.T) {
-	// Use a path that can't be created (no parent dirs) to trigger persist error.
-	s := &Scheduler{
-		jobs:     make(map[string]*Job),
-		filePath: "/nonexistent/deeply/nested/path/schedules.json",
-		browser:  browser.GetInstance(),
-	}
-	s.jobs["x"] = &Job{ID: "x", Name: "test"}
+func TestPersistDeleteMissingRowIsHandled(t *testing.T) {
+	// Repo returns an error for a missing row; persistDelete must log-and-swallow.
+	s := newTestScheduler(t)
 	// Should not panic; error is logged internally.
-	s.persist()
+	s.persistDelete("nonexistent-id")
 }
 
 // --- computeKeepAliveCron hours clamps to 12h minimum ---

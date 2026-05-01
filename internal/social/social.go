@@ -194,6 +194,11 @@ func SchedulesFilePath() string {
 	return filepath.Join(sessionsBaseDir(), "schedules.json")
 }
 
+// SharedSessionDirParent is the directory that holds accounts.json,
+// schedules.json, and the automations/ subdir. Exported for the backfill
+// orchestrator only — production code should use the repos.
+func SharedSessionDirParent() string { return sessionsBaseDir() }
+
 func sessionsBaseDir() string {
 	var base string
 	switch runtime.GOOS {

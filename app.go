@@ -31,9 +31,9 @@ var safePlatformIDPattern = regexp.MustCompile(`^[a-z0-9_-]+$`)
 type App struct {
 	getCtx      func() context.Context
 	browser     *browser.Manager
-	sessions    *social.SessionStore
+	sessions    social.SessionRepo
 	scheduler   *scheduler.Scheduler
-	automations *automation.Store
+	automations automation.Repository
 
 	currentRunMu          sync.Mutex
 	currentRunCancel      context.CancelFunc
@@ -41,15 +41,15 @@ type App struct {
 	currentAutomationID   string
 }
 
-func NewApp() *App {
-	b := browser.GetInstance()
-	s := social.NewSessionStore()
+// NewApp constructs an App with explicit dependencies. Callers (main.go) own
+// the lifecycle of the SQLite handle and the repos that wrap it.
+func NewApp(automations automation.Repository, sessions social.SessionRepo, sched *scheduler.Scheduler, b *browser.Manager) *App {
 	return &App{
 		getCtx:      func() context.Context { return context.Background() },
 		browser:     b,
-		sessions:    s,
-		scheduler:   scheduler.GetInstance(b, s),
-		automations: automation.NewStore(social.SharedSessionDir()),
+		sessions:    sessions,
+		scheduler:   sched,
+		automations: automations,
 	}
 }
 

@@ -1,10 +1,7 @@
 package scheduler
 
 import (
-	"encoding/json"
 	"fmt"
-	"os"
-	"path/filepath"
 	"sort"
 	"sync"
 	"time"
@@ -65,9 +62,9 @@ type Scheduler struct {
 	mu         sync.Mutex
 	cronRunner *cron.Cron
 	jobs       map[string]*Job
-	filePath   string
+	repo       ScheduleRepo
 	browser    *browser.Manager
-	sessions   *social.SessionStore
+	sessions   social.SessionRepo
 	running    bool
 }
 
@@ -76,18 +73,26 @@ var (
 	once     sync.Once
 )
 
-// GetInstance returns the singleton scheduler. The first call initialises
-// it with the given browser manager and session store references.
-func GetInstance(b *browser.Manager, s *social.SessionStore) *Scheduler {
+// GetInstance returns the singleton scheduler. The first call initialises it
+// with the provided dependencies.
+func GetInstance(b *browser.Manager, s social.SessionRepo, repo ScheduleRepo) *Scheduler {
 	once.Do(func() {
 		instance = &Scheduler{
 			jobs:     make(map[string]*Job),
-			filePath: social.SchedulesFilePath(),
+			repo:     repo,
 			browser:  b,
 			sessions: s,
 		}
 	})
 	return instance
+}
+
+// resetSchedulerForTest re-zeroes the singleton so tests can build a fresh
+// Scheduler with their own dependencies. Lowercase: callable only from
+// in-package tests.
+func resetSchedulerForTest() {
+	instance = nil
+	once = sync.Once{}
 }
 
 // Start creates the cron runner, loads persisted jobs and begins scheduling.
@@ -109,7 +114,8 @@ func (s *Scheduler) Start() {
 	logger.Info("scheduler", fmt.Sprintf("started with %d jobs loaded", len(s.jobs)))
 }
 
-// Stop halts the cron runner, persists state and marks the scheduler stopped.
+// Stop halts the cron runner and marks the scheduler stopped. Job state is
+// already persisted on every mutation, so no flush is required here.
 func (s *Scheduler) Stop() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -117,7 +123,6 @@ func (s *Scheduler) Stop() {
 	if s.cronRunner != nil {
 		s.cronRunner.Stop()
 	}
-	s.persist()
 	s.running = false
 	logger.Info("scheduler", "stopped")
 }
@@ -133,7 +138,7 @@ func (s *Scheduler) Create(j Job) *Job {
 
 	s.jobs[j.ID] = &j
 	s.registerJob(&j)
-	s.persist()
+	s.persistJob(&j)
 
 	logger.Info("scheduler", fmt.Sprintf("created job %s (%s)", j.Name, j.ID))
 	return &j
@@ -182,7 +187,7 @@ func (s *Scheduler) Update(id string, fn func(*Job)) *Job {
 		}
 	}
 
-	s.persist()
+	s.persistJob(j)
 	return j
 }
 
@@ -198,7 +203,7 @@ func (s *Scheduler) Delete(id string) bool {
 
 	s.unregisterJob(j)
 	delete(s.jobs, id)
-	s.persist()
+	s.persistDelete(id)
 
 	logger.Info("scheduler", fmt.Sprintf("deleted job %s", id))
 	return true
@@ -216,7 +221,7 @@ func (s *Scheduler) Pause(id string) *Job {
 
 	s.unregisterJob(j)
 	j.Status = JobStatusPaused
-	s.persist()
+	s.persistJob(j)
 
 	logger.Info("scheduler", fmt.Sprintf("paused job %s", j.Name))
 	return j
@@ -234,7 +239,7 @@ func (s *Scheduler) Resume(id string) *Job {
 
 	s.registerJob(j)
 	j.Status = JobStatusActive
-	s.persist()
+	s.persistJob(j)
 
 	logger.Info("scheduler", fmt.Sprintf("resumed job %s", j.Name))
 	return j
@@ -274,7 +279,7 @@ func (s *Scheduler) EnsureKeepAlive(platformID string, platformName string, cook
 
 	s.jobs[j.ID] = j
 	s.registerJob(j)
-	s.persist()
+	s.persistJob(j)
 
 	logger.Info("scheduler", fmt.Sprintf("auto-created keep-alive for %s (cron: %s)", platformName, cronExpr))
 }
@@ -362,7 +367,7 @@ func (s *Scheduler) execute(j *Job) {
 			s.mu.Lock()
 			j.LastResult = fmt.Sprintf("panic: %v", r)
 			j.Status = JobStatusFailed
-			s.persist()
+			s.persistJob(j)
 			s.mu.Unlock()
 		}
 	}()
@@ -386,44 +391,32 @@ func (s *Scheduler) execute(j *Job) {
 		entry := s.cronRunner.Entry(j.cronEntryID)
 		j.NextRun = entry.Next
 	}
-	s.persist()
+	s.persistJob(j)
 	s.mu.Unlock()
 }
 
-// persist writes all jobs to disk as indented JSON.
-func (s *Scheduler) persist() {
-	jobs := make([]*Job, 0, len(s.jobs))
-	for _, j := range s.jobs {
-		jobs = append(jobs, j)
-	}
-
-	data, err := json.MarshalIndent(jobs, "", "  ")
+// load reads persisted jobs from the repo into the in-memory map.
+func (s *Scheduler) load() {
+	jobs, err := s.repo.List()
 	if err != nil {
-		logger.Error("scheduler", fmt.Sprintf("failed to marshal jobs: %v", err))
+		logger.Warn("scheduler", fmt.Sprintf("load schedules: %v", err))
 		return
 	}
-
-	os.MkdirAll(filepath.Dir(s.filePath), 0700)
-	if err := os.WriteFile(s.filePath, data, 0600); err != nil {
-		logger.Error("scheduler", fmt.Sprintf("failed to write jobs: %v", err))
+	for _, j := range jobs {
+		s.jobs[j.ID] = j
 	}
 }
 
-// load reads persisted jobs from disk into the jobs map.
-func (s *Scheduler) load() {
-	data, err := os.ReadFile(s.filePath)
-	if err != nil {
-		// File doesn't exist yet — that's fine on first run.
-		return
+// persistJob writes one job through the repo.
+func (s *Scheduler) persistJob(j *Job) {
+	if err := s.repo.Save(j); err != nil {
+		logger.Error("scheduler", fmt.Sprintf("persist job %s: %v", j.ID, err))
 	}
+}
 
-	var jobs []*Job
-	if err := json.Unmarshal(data, &jobs); err != nil {
-		logger.Warn("scheduler", fmt.Sprintf("failed to parse jobs file: %v", err))
-		return
-	}
-
-	for _, j := range jobs {
-		s.jobs[j.ID] = j
+// persistDelete removes a job through the repo.
+func (s *Scheduler) persistDelete(id string) {
+	if err := s.repo.Delete(id); err != nil {
+		logger.Error("scheduler", fmt.Sprintf("delete job %s: %v", id, err))
 	}
 }
