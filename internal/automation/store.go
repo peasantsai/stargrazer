@@ -12,18 +12,6 @@ import (
 	"github.com/google/uuid"
 )
 
-// Action is the type of a single automation step.
-type Action string
-
-const (
-	ActionNavigate   Action = "navigate"
-	ActionClick      Action = "click"
-	ActionType       Action = "type"
-	ActionWait       Action = "wait"
-	ActionEvaluate   Action = "evaluate"
-	ActionScroll     Action = "scroll"
-)
-
 // Step is one command in an automation sequence.
 type Step struct {
 	Action Action `json:"action"`
