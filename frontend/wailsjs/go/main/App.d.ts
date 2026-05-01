@@ -3,6 +3,8 @@
 import {main} from '../models';
 import {workflow} from '../models';
 
+export function CancelRun():Promise<boolean>;
+
 export function CheckAllLoginStatus():Promise<Array<main.PlatformResponse>>;
 
 export function CheckLoginStatus(arg1:string):Promise<main.PlatformResponse>;
@@ -32,6 +34,8 @@ export function GetScheduleStats(arg1:string):Promise<main.ScheduleResponse>;
 export function GetSchedules():Promise<Array<main.ScheduleResponse>>;
 
 export function ImportCookies(arg1:string,arg2:string):Promise<main.PlatformResponse>;
+
+export function ImportRecording(arg1:string,arg2:string):Promise<main.ImportResult>;
 
 export function LogFromFrontend(arg1:string,arg2:string,arg3:string):Promise<void>;
 

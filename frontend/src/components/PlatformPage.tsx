@@ -3,6 +3,7 @@ import {
   GetAutomations, SaveAutomation, DeleteAutomation, RunAutomation, TestAutomation, CreateSchedule,
   GetSchedules, DeleteSchedule, PauseSchedule, ResumeSchedule,
   GetPlatforms, OpenPlatform, ImportCookies, PurgeSession, LogFromFrontend,
+  ImportRecording,
 } from '../../wailsjs/go/main/App';
 import { main } from '../../wailsjs/go/models';
 import type {
@@ -118,93 +119,6 @@ function StepRow({
   );
 }
 
-/* ── Chrome Recorder JSON → automation steps converter ── */
-interface RecorderStep {
-  type: string;
-  url?: string;
-  selectors?: string[][];
-  value?: string;
-  key?: string;
-  offsetX?: number;
-  offsetY?: number;
-  target?: string;
-  width?: number;
-  height?: number;
-  duration?: number;
-}
-
-interface RecorderJson {
-  title?: string;
-  steps?: RecorderStep[];
-}
-
-// bestLabel picks the most human-readable selector for a label.
-function bestLabel(selectors?: string[][]): string {
-  if (!selectors) return '';
-  for (const group of selectors) {
-    for (const sel of group) {
-      if (sel.startsWith('text/')) return sel.replace('text/', '');
-      if (sel.startsWith('aria/')) return sel.replace('aria/', '').split('[')[0].trim();
-    }
-  }
-  return selectors[0]?.[0] ?? '';
-}
-
-function convertRecorderJson(json: RecorderJson): AutomationStepData[] {
-  if (!json.steps) return [];
-  const steps: AutomationStepData[] = [];
-
-  for (const s of json.steps) {
-    const sels = s.selectors ?? [];
-    const primarySel = sels[0]?.[0] ?? '';
-    const label = bestLabel(sels) || primarySel;
-
-    switch (s.type) {
-      case 'navigate':
-        if (s.url) {
-          steps.push({ action: 'navigate', target: s.url, value: '', label: `Navigate to ${s.url}` });
-        }
-        break;
-      case 'click':
-      case 'doubleClick':
-        if (sels.length > 0 || primarySel) {
-          steps.push({ action: 'click', target: primarySel, value: '', label: `Click ${label}`, selectors: sels.length > 0 ? sels : undefined });
-        }
-        break;
-      case 'change':
-        if ((sels.length > 0 || primarySel) && s.value !== undefined) {
-          steps.push({ action: 'type', target: primarySel, value: s.value, label: `Type into ${label}`, selectors: sels.length > 0 ? sels : undefined });
-        }
-        break;
-      case 'keyDown':
-      case 'keyUp':
-        if (s.key && s.type === 'keyDown') {
-          steps.push({ action: 'evaluate', target: '', value: `document.dispatchEvent(new KeyboardEvent('keydown', {key: '${s.key}', bubbles: true}))`, label: `Key down: ${s.key}` });
-        }
-        break;
-      case 'scroll':
-        if (sels.length > 0 || primarySel) {
-          steps.push({ action: 'scroll', target: primarySel, value: '', label: `Scroll to ${label}`, selectors: sels.length > 0 ? sels : undefined });
-        }
-        break;
-      case 'setViewport':
-        if (s.width && s.height) {
-          steps.push({ action: 'evaluate', target: '', value: `window.resizeTo(${s.width}, ${s.height})`, label: `Set viewport ${s.width}x${s.height}` });
-        }
-        break;
-      case 'waitForElement':
-        if (primarySel) {
-          steps.push({ action: 'wait', target: '', value: '1000', label: `Wait for ${label}` });
-        }
-        break;
-      default:
-        break;
-    }
-  }
-
-  return steps;
-}
-
 /* ── Define tab ── */
 function DefineTab({ platformId, automations, onSaved, onDeleted, addMessage }: {
   readonly platformId: string;
@@ -262,30 +176,41 @@ function DefineTab({ platformId, automations, onSaved, onDeleted, addMessage }: 
     }
   };
 
-  const handleImportJson = () => {
+  const handleImportJson = async () => {
     setImportError('');
     try {
-      const parsed = JSON.parse(importJson) as RecorderJson;
-      if (!parsed.steps || !Array.isArray(parsed.steps)) {
-        setImportError('Invalid JSON: missing "steps" array.');
+      const result = await ImportRecording(importJson, platformId);
+      if (!result.success) {
+        setImportError(result.error || 'Import failed.');
         return;
       }
-      const steps = convertRecorderJson(parsed);
-      if (steps.length === 0) {
+      const draftSteps = result.draft?.steps ?? [];
+      if (draftSteps.length === 0) {
         setImportError('No convertible steps found in the recording.');
         return;
       }
-      LogFromFrontend('info', 'platform', `Imported Chrome Recorder JSON: "${parsed.title}" — ${parsed.steps.length} raw steps → ${steps.length} automation steps`);
+      LogFromFrontend('info', 'platform',
+        `Imported recording: "${result.draft.name}" — ${draftSteps.length} steps`
+        + (result.warnings && result.warnings.length > 0 ? ` · ${result.warnings.length} warning(s)` : ''));
+      if (result.warnings) {
+        result.warnings.forEach(w => addMessage('system', `Import warning: ${w}`));
+      }
       setEditing({
         ...emptyAutomation(platformId),
-        name: parsed.title || 'Imported Recording',
-        description: `Imported from Chrome Recorder (${steps.length} steps)`,
-        steps,
+        name: result.draft.name || 'Imported Recording',
+        description: result.draft.description || '',
+        steps: draftSteps.map(s => ({
+          action: (s.action ?? 'navigate') as AutomationAction,
+          target: s.target ?? '',
+          value: s.value ?? '',
+          label: s.label ?? '',
+          selectors: s.selectors,
+        })),
       });
       setShowImportModal(false);
       setImportJson('');
-    } catch {
-      setImportError('Invalid JSON. Please paste a valid Chrome Recorder JSON.');
+    } catch (err: unknown) {
+      setImportError(err instanceof Error ? err.message : 'Invalid JSON.');
     }
   };
 

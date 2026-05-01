@@ -69,5 +69,16 @@ export const SaveAutomation = vi.fn().mockResolvedValue({
 });
 export const DeleteAutomation = vi.fn().mockResolvedValue(true);
 export const RunAutomation = vi.fn().mockResolvedValue({ success: true, message: 'Automation completed successfully' });
+export const TestAutomation = vi.fn().mockResolvedValue({ success: true, message: 'Test completed successfully' });
+export const ImportRecording = vi.fn().mockResolvedValue({
+  success: true,
+  draft: {
+    id: '', platformId: 'facebook', name: 'mock', description: '',
+    steps: [], createdAt: '', lastRun: '', runCount: 0,
+  },
+  warnings: [],
+});
+export const CancelRun = vi.fn().mockResolvedValue(true);
+export const LogFromFrontend = vi.fn().mockResolvedValue(undefined);
 export const GetScheduleStats = vi.fn().mockResolvedValue({ totalRuns: 0, lastResult: '' });
 export const UpdateSchedule = vi.fn().mockResolvedValue({ id: '1', status: 'active' });
