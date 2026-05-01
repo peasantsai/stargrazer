@@ -1,12 +1,10 @@
 package social
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
-	"sync"
 	"time"
 )
 
@@ -85,51 +83,6 @@ type AccountStatus struct {
 	LastCheck  time.Time `json:"lastCheck"`
 }
 
-// SessionStore reads per-platform login state from a JSON file. Read-only as
-// of DSG-001-P2.
-type SessionStore struct {
-	mu       sync.RWMutex
-	accounts map[Platform]*AccountStatus
-	filePath string
-}
-
-// NewSessionStore creates or loads the session store from disk.
-func NewSessionStore() *SessionStore {
-	fp := sessionFilePath()
-	s := &SessionStore{
-		accounts: make(map[Platform]*AccountStatus),
-		filePath: fp,
-	}
-	s.load()
-	return s
-}
-
-// GetAll returns the status for every platform.
-func (s *SessionStore) GetAll() []AccountStatus {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	platforms := AllPlatforms()
-	result := make([]AccountStatus, 0, len(platforms))
-	for _, p := range platforms {
-		if acct, ok := s.accounts[p.ID]; ok {
-			result = append(result, *acct)
-		} else {
-			result = append(result, AccountStatus{PlatformID: p.ID})
-		}
-	}
-	return result
-}
-
-// Get returns the status for a single platform.
-func (s *SessionStore) Get(id Platform) AccountStatus {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	if acct, ok := s.accounts[id]; ok {
-		return *acct
-	}
-	return AccountStatus{PlatformID: id}
-}
-
 // SessionDir returns the persistent user-data-dir for a platform's browser session.
 // Kept for backward compat display purposes.
 func SessionDir(id Platform) string {
@@ -151,11 +104,6 @@ func FindPlatform(id Platform) *PlatformInfo {
 		}
 	}
 	return nil
-}
-
-// SchedulesFilePath returns the path to the schedules persistence file.
-func SchedulesFilePath() string {
-	return filepath.Join(sessionsBaseDir(), "schedules.json")
 }
 
 // SharedSessionDirParent is the directory that holds accounts.json,
@@ -180,25 +128,6 @@ func sessionsBaseDir() string {
 		}
 	}
 	return filepath.Join(base, "stargrazer", "sessions")
-}
-
-func sessionFilePath() string {
-	return filepath.Join(sessionsBaseDir(), "accounts.json")
-}
-
-func (s *SessionStore) load() {
-	data, err := os.ReadFile(s.filePath)
-	if err != nil {
-		return
-	}
-	var accounts []AccountStatus
-	if err := json.Unmarshal(data, &accounts); err != nil {
-		return
-	}
-	for i := range accounts {
-		a := accounts[i]
-		s.accounts[a.PlatformID] = &a
-	}
 }
 
 // EnsureSessionDir creates the shared session directory if it doesn't exist.

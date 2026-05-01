@@ -2,7 +2,6 @@ package social
 
 import (
 	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -89,45 +88,6 @@ func TestFindPlatformUnknown(t *testing.T) {
 	}
 }
 
-func TestNewSessionStoreCreatesEmptyStore(t *testing.T) {
-	// Use a temp dir to avoid touching real session files.
-	tmpDir := t.TempDir()
-	fp := filepath.Join(tmpDir, "accounts.json")
-
-	s := &SessionStore{
-		accounts: make(map[Platform]*AccountStatus),
-		filePath: fp,
-	}
-
-	all := s.GetAll()
-	if len(all) != 6 {
-		t.Errorf("expected 6 entries from GetAll, got %d", len(all))
-	}
-	for _, a := range all {
-		if a.LoggedIn {
-			t.Errorf("platform %s should not be logged in", a.PlatformID)
-		}
-	}
-}
-
-func TestGetReturnsDefaultForUnknownPlatform(t *testing.T) {
-	tmpDir := t.TempDir()
-	fp := filepath.Join(tmpDir, "accounts.json")
-
-	s := &SessionStore{
-		accounts: make(map[Platform]*AccountStatus),
-		filePath: fp,
-	}
-
-	status := s.Get(TikTok)
-	if status.LoggedIn {
-		t.Error("expected LoggedIn false for unset platform")
-	}
-	if status.PlatformID != TikTok {
-		t.Errorf("expected PlatformID TikTok, got %s", status.PlatformID)
-	}
-}
-
 func TestSharedSessionDirNonEmpty(t *testing.T) {
 	dir := SharedSessionDir()
 	if dir == "" {
@@ -135,16 +95,6 @@ func TestSharedSessionDirNonEmpty(t *testing.T) {
 	}
 	if !strings.HasSuffix(dir, "browser_profile") {
 		t.Errorf("expected SharedSessionDir to end with 'browser_profile', got %q", dir)
-	}
-}
-
-func TestSchedulesFilePath(t *testing.T) {
-	fp := SchedulesFilePath()
-	if fp == "" {
-		t.Error("SchedulesFilePath() returned empty string")
-	}
-	if !strings.HasSuffix(fp, "schedules.json") {
-		t.Errorf("expected SchedulesFilePath to end with 'schedules.json', got %q", fp)
 	}
 }
 
@@ -188,45 +138,6 @@ func TestSessionDirReturnsSameAsShared(t *testing.T) {
 	}
 }
 
-// --- load edge cases ---
-
-func TestLoadWithInvalidJSON(t *testing.T) {
-	tmpDir := t.TempDir()
-	fp := filepath.Join(tmpDir, "accounts.json")
-	os.WriteFile(fp, []byte("not valid json {["), 0600)
-
-	s := &SessionStore{accounts: make(map[Platform]*AccountStatus), filePath: fp}
-	s.load()
-	// Should not crash, accounts should remain empty
-	if len(s.accounts) != 0 {
-		t.Errorf("expected 0 accounts after invalid JSON load, got %d", len(s.accounts))
-	}
-}
-
-func TestLoadWithMissingFile(t *testing.T) {
-	s := &SessionStore{
-		accounts: make(map[Platform]*AccountStatus),
-		filePath: "/nonexistent/path/accounts.json",
-	}
-	s.load()
-	// Should not crash
-	if len(s.accounts) != 0 {
-		t.Errorf("expected 0 accounts for missing file, got %d", len(s.accounts))
-	}
-}
-
-func TestLoadWithEmptyArray(t *testing.T) {
-	tmpDir := t.TempDir()
-	fp := filepath.Join(tmpDir, "accounts.json")
-	os.WriteFile(fp, []byte("[]"), 0600)
-
-	s := &SessionStore{accounts: make(map[Platform]*AccountStatus), filePath: fp}
-	s.load()
-	if len(s.accounts) != 0 {
-		t.Errorf("expected 0 accounts for empty array, got %d", len(s.accounts))
-	}
-}
-
 // --- Platform constants ---
 
 func TestPlatformConstants(t *testing.T) {
@@ -251,7 +162,7 @@ func TestPlatformConstants(t *testing.T) {
 	}
 }
 
-// --- sessionsBaseDir / sessionFilePath ---
+// --- sessionsBaseDir ---
 
 func TestSessionsBaseDirReturnsNonEmpty(t *testing.T) {
 	dir := sessionsBaseDir()
@@ -263,41 +174,6 @@ func TestSessionsBaseDirReturnsNonEmpty(t *testing.T) {
 	}
 	if !strings.HasSuffix(dir, "sessions") {
 		t.Errorf("expected base dir to end with 'sessions', got %q", dir)
-	}
-}
-
-func TestSessionFilePathReturnsNonEmpty(t *testing.T) {
-	fp := sessionFilePath()
-	if fp == "" {
-		t.Error("sessionFilePath() returned empty string")
-	}
-	if !strings.HasSuffix(fp, "accounts.json") {
-		t.Errorf("expected sessionFilePath to end with 'accounts.json', got %q", fp)
-	}
-}
-
-// --- NewSessionStore ---
-
-func TestNewSessionStoreLoadsExistingFile(t *testing.T) {
-	// Set env so sessionFilePath resolves under our temp dir
-	tmpDir := t.TempDir()
-	sessionsDir := filepath.Join(tmpDir, "stargrazer", "sessions")
-	os.MkdirAll(sessionsDir, 0700)
-
-	// Write a pre-existing accounts file
-	data := `[{"platformId":"instagram","loggedIn":true,"username":"pre_user","lastLogin":"2025-01-01T00:00:00Z","lastCheck":"2025-01-01T00:00:00Z"}]`
-	os.WriteFile(filepath.Join(sessionsDir, "accounts.json"), []byte(data), 0600)
-
-	t.Setenv("APPDATA", tmpDir)
-	t.Setenv("HOME", tmpDir)
-
-	store := NewSessionStore()
-	status := store.Get(Instagram)
-	if !status.LoggedIn {
-		t.Error("expected Instagram to be logged in from pre-existing file")
-	}
-	if status.Username != "pre_user" {
-		t.Errorf("expected username 'pre_user', got %q", status.Username)
 	}
 }
 
