@@ -16,6 +16,7 @@ func TestActionConstants_StringValues(t *testing.T) {
 		ActionScroll:         "scroll",
 		ActionHover:          "hover",
 		ActionSetViewport:    "setViewport",
+		ActionTemplate:       "template",
 	}
 	for a, want := range cases {
 		if string(a) != want {
@@ -30,6 +31,7 @@ func TestAllActions_ContainsEveryConstant(t *testing.T) {
 		ActionNavigate, ActionClick, ActionDoubleClick, ActionType,
 		ActionKeyDown, ActionKeyUp, ActionWait, ActionWaitForElement,
 		ActionEvaluate, ActionScroll, ActionHover, ActionSetViewport,
+		ActionTemplate,
 	}
 	if len(got) != len(want) {
 		t.Fatalf("AllActions length: got %d, want %d", len(got), len(want))
@@ -43,4 +45,16 @@ func TestAllActions_ContainsEveryConstant(t *testing.T) {
 			t.Errorf("AllActions missing %q", w)
 		}
 	}
+}
+
+func TestActionTemplate_Registered(t *testing.T) {
+	if ActionTemplate != "template" {
+		t.Fatalf("ActionTemplate = %q, want %q", ActionTemplate, "template")
+	}
+	for _, a := range AllActions() {
+		if a == ActionTemplate {
+			return
+		}
+	}
+	t.Fatalf("AllActions() missing ActionTemplate; got %v", AllActions())
 }

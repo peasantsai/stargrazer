@@ -16,6 +16,7 @@ const (
 	ActionScroll         Action = "scroll"
 	ActionHover          Action = "hover"
 	ActionSetViewport    Action = "setViewport"
+	ActionTemplate       Action = "template"
 )
 
 // AllActions returns every defined Action constant.
@@ -35,5 +36,6 @@ func AllActions() []Action {
 		ActionScroll,
 		ActionHover,
 		ActionSetViewport,
+		ActionTemplate,
 	}
 }

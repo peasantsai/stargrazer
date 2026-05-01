@@ -1,6 +1,7 @@
 package automation
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -124,5 +125,20 @@ func TestSQLiteRepo_RecordRunBumpsCountAndLastRun(t *testing.T) {
 	}
 	if list[0].LastRun.Before(before) {
 		t.Errorf("LastRun not updated: %v", list[0].LastRun)
+	}
+}
+
+func TestSQLiteRepo_Save_RejectsTemplateStepWithEmptyTarget(t *testing.T) {
+	repo := NewSQLiteRepo(dbtest.NewMemDB(t))
+	_, err := repo.Save(Config{
+		PlatformID: "facebook",
+		Name:       "bad",
+		Steps:      []Step{{Action: ActionTemplate, Target: ""}},
+	})
+	if err == nil {
+		t.Fatal("expected validation error for empty template Target")
+	}
+	if !strings.Contains(err.Error(), "template") {
+		t.Fatalf("error %q does not mention template", err.Error())
 	}
 }

@@ -61,6 +61,11 @@ func (r *SQLiteRepo) Save(cfg Config) (Config, error) {
 	if cfg.PlatformID == "" {
 		return Config{}, errors.New("save: platformID required")
 	}
+	for i, s := range cfg.Steps {
+		if s.Action == ActionTemplate && s.Target == "" {
+			return Config{}, fmt.Errorf("save: step %d action=template requires Target (templateId)", i)
+		}
+	}
 	if cfg.ID == "" {
 		cfg.ID = uuid.NewString()
 		cfg.CreatedAt = time.Now()
