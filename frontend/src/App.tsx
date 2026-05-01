@@ -8,6 +8,8 @@ import { Sidebar } from './components/Sidebar';
 import { ChatPanel } from './components/ChatPanel';
 import { ConfigPanel } from './components/ConfigPanel';
 import { PlatformPage } from './components/PlatformPage';
+import { RunStrip } from './components/RunStrip';
+import { useRunEvents } from './hooks/useRunEvents';
 
 const PLATFORM_NAMES: Record<string, string> = {
   facebook: 'Facebook',
@@ -27,6 +29,7 @@ function App() {
   const [platforms, setPlatforms] = useState<PlatformResponse[]>([]);
   const [theme, setTheme] = useTheme();
   const [account, updateAccount] = useAccount();
+  const runEvents = useRunEvents();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const msgIdRef = useRef(0);
 
@@ -128,6 +131,7 @@ function App() {
         updateAccount={updateAccount}
       />
       <div className="main-content">
+        <RunStrip current={runEvents.current} />
         {renderPanel()}
       </div>
     </div>

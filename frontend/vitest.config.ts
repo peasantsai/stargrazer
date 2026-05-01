@@ -3,6 +3,7 @@ import path from 'node:path';
 
 const wailsMock = path.resolve(__dirname, 'src/test/wailsMock.ts');
 const modelsMock = path.resolve(__dirname, 'src/test/modelsMock.ts');
+const runtimeMock = path.resolve(__dirname, 'src/test/wailsRuntimeMock.ts');
 
 export default defineConfig({
   resolve: {
@@ -16,6 +17,11 @@ export default defineConfig({
         find: /wailsjs\/go\/models/,
         replacement: modelsMock,
         customResolver: () => modelsMock,
+      },
+      {
+        find: /wailsjs\/runtime\/runtime/,
+        replacement: runtimeMock,
+        customResolver: () => runtimeMock,
       },
     ],
   },
