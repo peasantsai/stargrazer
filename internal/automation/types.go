@@ -23,12 +23,13 @@ type Step struct {
 
 // Config is a named, platform-scoped automation workflow.
 type Config struct {
-	ID          string    `json:"id"`
-	PlatformID  string    `json:"platformId"`
-	Name        string    `json:"name"`
-	Description string    `json:"description"`
-	Steps       []Step    `json:"steps"`
-	CreatedAt   time.Time `json:"createdAt"`
-	LastRun     time.Time `json:"lastRun,omitempty"`
-	RunCount    int       `json:"runCount"`
+	ID               string    `json:"id"`
+	PlatformID       string    `json:"platformId"`
+	Name             string    `json:"name"`
+	Description      string    `json:"description"`
+	Steps            []Step    `json:"steps"`
+	CreatedAt        time.Time `json:"createdAt"`
+	LastRun          time.Time `json:"lastRun,omitempty"`
+	RunCount         int       `json:"runCount"`
+	DefaultProfileID string    `json:"defaultProfileId,omitempty"`
 }

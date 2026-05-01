@@ -23,7 +23,7 @@ func NewSQLiteRepo(exec stardb.Executor) *SQLiteRepo { return &SQLiteRepo{exec: 
 
 func (r *SQLiteRepo) List(platformID string) ([]Config, error) {
 	rows, err := r.exec.Query(`
-		SELECT id, platform_id, name, description, steps, created_at, last_run, run_count
+		SELECT id, platform_id, name, description, steps, created_at, last_run, run_count, default_profile_id
 		FROM automations
 		WHERE platform_id = ?
 		ORDER BY created_at`, platformID)
@@ -39,8 +39,9 @@ func (r *SQLiteRepo) List(platformID string) ([]Config, error) {
 			stepsJSON string
 			createdAt string
 			lastRun   sql.NullString
+			defProf   sql.NullString
 		)
-		if err := rows.Scan(&cfg.ID, &cfg.PlatformID, &cfg.Name, &cfg.Description, &stepsJSON, &createdAt, &lastRun, &cfg.RunCount); err != nil {
+		if err := rows.Scan(&cfg.ID, &cfg.PlatformID, &cfg.Name, &cfg.Description, &stepsJSON, &createdAt, &lastRun, &cfg.RunCount, &defProf); err != nil {
 			return nil, fmt.Errorf("scan automation row: %w", err)
 		}
 		if err := json.Unmarshal([]byte(stepsJSON), &cfg.Steps); err != nil {
@@ -52,6 +53,9 @@ func (r *SQLiteRepo) List(platformID string) ([]Config, error) {
 		}
 		cfg.CreatedAt = t
 		cfg.LastRun = stardb.ParseNullTime(lastRun)
+		if defProf.Valid {
+			cfg.DefaultProfileID = defProf.String
+		}
 		out = append(out, cfg)
 	}
 	return out, rows.Err()
@@ -78,19 +82,21 @@ func (r *SQLiteRepo) Save(cfg Config) (Config, error) {
 		return Config{}, fmt.Errorf("marshal steps: %w", err)
 	}
 	_, err = r.exec.Exec(`
-		INSERT INTO automations(id, platform_id, name, description, steps, created_at, last_run, run_count)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+		INSERT INTO automations(id, platform_id, name, description, steps, created_at, last_run, run_count, default_profile_id)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(id) DO UPDATE SET
-			platform_id = excluded.platform_id,
-			name        = excluded.name,
-			description = excluded.description,
-			steps       = excluded.steps,
-			last_run    = excluded.last_run,
-			run_count   = excluded.run_count`,
+			platform_id        = excluded.platform_id,
+			name               = excluded.name,
+			description        = excluded.description,
+			steps              = excluded.steps,
+			last_run           = excluded.last_run,
+			run_count          = excluded.run_count,
+			default_profile_id = excluded.default_profile_id`,
 		cfg.ID, cfg.PlatformID, cfg.Name, cfg.Description, string(stepsJSON),
 		cfg.CreatedAt.UTC().Format(time.RFC3339Nano),
 		stardb.FormatNullTime(cfg.LastRun),
 		cfg.RunCount,
+		nullableString(cfg.DefaultProfileID),
 	)
 	if err != nil {
 		return Config{}, fmt.Errorf("upsert automation %s: %w", cfg.ID, err)
@@ -131,3 +137,10 @@ func (r *SQLiteRepo) RecordRun(platformID, id string) error {
 
 // Compile-time assertion: *SQLiteRepo satisfies Repository.
 var _ Repository = (*SQLiteRepo)(nil)
+
+func nullableString(s string) any {
+	if s == "" {
+		return nil
+	}
+	return s
+}
