@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	"stargrazer/internal/automation"
@@ -33,6 +34,11 @@ type App struct {
 	sessions    *social.SessionStore
 	scheduler   *scheduler.Scheduler
 	automations *automation.Store
+
+	currentRunMu          sync.Mutex
+	currentRunCancel      context.CancelFunc
+	currentAutomationName string
+	currentAutomationID   string
 }
 
 func NewApp() *App {
@@ -752,9 +758,12 @@ func (a *App) RunAutomation(platformID, id string) RunAutomationResponse {
 	}
 	defer cancel()
 
+	a.beginRun(cfg.ID, cfg.Name, cancel)
+	defer a.endRun()
+
 	logger.Info("automation", fmt.Sprintf("Running %q (%d steps) for %s via chromedp", cfg.Name, len(cfg.Steps), platformID))
 	for i, step := range cfg.Steps {
-		if err := a.executeStep(ctx, i, step); err != nil {
+		if err := a.executeStep(ctx, i, len(cfg.Steps), step); err != nil {
 			msg := fmt.Sprintf("step %d/%d failed (%s): %v", i+1, len(cfg.Steps), step.Action, err)
 			logger.Error("automation", msg)
 			return RunAutomationResponse{Success: false, Message: msg}
@@ -803,6 +812,9 @@ func (a *App) TestAutomation(platformID, id string) RunAutomationResponse {
 	}
 	defer cancel()
 
+	a.beginRun(cfg.ID, cfg.Name, cancel)
+	defer a.endRun()
+
 	// Navigate to the platform URL first, then wait for page ready.
 	logger.Info("automation", fmt.Sprintf("Navigating to %s: %s", platform.Name, platform.URL))
 	if err := a.browser.ExecNavigate(ctx, platform.URL); err != nil {
@@ -818,7 +830,7 @@ func (a *App) TestAutomation(platformID, id string) RunAutomationResponse {
 	logger.Info("automation", fmt.Sprintf("Testing %q (%d steps) for %s", cfg.Name, len(cfg.Steps), platformID))
 	var stepErr error
 	for i, step := range cfg.Steps {
-		if err := a.executeStep(ctx, i, step); err != nil {
+		if err := a.executeStep(ctx, i, len(cfg.Steps), step); err != nil {
 			stepErr = err
 			logger.Error("automation", fmt.Sprintf("step %d/%d failed (%s): %v", i+1, len(cfg.Steps), step.Action, err))
 			break
@@ -844,14 +856,149 @@ func (a *App) TestAutomation(platformID, id string) RunAutomationResponse {
 	return RunAutomationResponse{Success: true, Message: msg}
 }
 
-// executeStep dispatches a single automation step via the registered StepHandler.
-// Per-step logging stays here; the chromedp/CDP work lives in internal/browser/steps.go.
-func (a *App) executeStep(ctx context.Context, index int, step automation.Step) error {
-	logger.Info("automation", fmt.Sprintf("  step %d: %s → %s", index+1, step.Action, truncSel(step)))
-	if err := browser.RunStep(ctx, a.browser, step); err != nil {
+// executeStep dispatches a single automation step via the registered StepHandler
+// and emits run.step events for the visibility strip.
+func (a *App) executeStep(ctx context.Context, index int, total int, step automation.Step) error {
+	a.emitRunStep(runStepEvent{
+		AutomationID:   a.currentAutomationID,
+		AutomationName: a.currentAutomationName,
+		StepIndex:      index,
+		Total:          total,
+		Action:         string(step.Action),
+		Target:         truncTarget(step.Target),
+		Status:         "running",
+		StartedAt:      time.Now().UTC().Format(time.RFC3339Nano),
+	})
+
+	logger.Info("automation", fmt.Sprintf("  step %d/%d: %s → %s", index+1, total, step.Action, truncSel(step)))
+	err := browser.RunStep(ctx, a.browser, step)
+
+	status := "success"
+	if err != nil {
+		status = "failed"
+	}
+	a.emitRunStep(runStepEvent{
+		AutomationID:   a.currentAutomationID,
+		AutomationName: a.currentAutomationName,
+		StepIndex:      index,
+		Total:          total,
+		Action:         string(step.Action),
+		Status:         status,
+		FinishedAt:     time.Now().UTC().Format(time.RFC3339Nano),
+		Error:          errString(err),
+	})
+
+	if err != nil {
 		return fmt.Errorf("%s: %w", step.Action, err)
 	}
 	return nil
+}
+
+// runStepEvent is the payload of the "run.step" Wails event topic. The shape is
+// additive — Phase 5 adds RunID, ScreenshotPath, DurationMs.
+type runStepEvent struct {
+	RunID          string `json:"runId"`
+	AutomationID   string `json:"automationId"`
+	AutomationName string `json:"automationName"`
+	StepIndex      int    `json:"stepIndex"`
+	Total          int    `json:"total"`
+	Action         string `json:"action"`
+	Target         string `json:"target,omitempty"`
+	Status         string `json:"status"`
+	StartedAt      string `json:"startedAt,omitempty"`
+	FinishedAt     string `json:"finishedAt,omitempty"`
+	Error          string `json:"error,omitempty"`
+}
+
+func (a *App) emitRunStep(ev runStepEvent) {
+	wailsRuntime.EventsEmit(a.getCtx(), "run.step", ev)
+}
+
+// beginRun stashes the cancel func and automation identity so the visibility
+// strip can render and CancelRun can interrupt.
+func (a *App) beginRun(automationID, automationName string, cancel context.CancelFunc) {
+	a.currentRunMu.Lock()
+	defer a.currentRunMu.Unlock()
+	a.currentAutomationID = automationID
+	a.currentAutomationName = automationName
+	a.currentRunCancel = cancel
+}
+
+func (a *App) endRun() {
+	a.currentRunMu.Lock()
+	defer a.currentRunMu.Unlock()
+	a.currentAutomationID = ""
+	a.currentAutomationName = ""
+	a.currentRunCancel = nil
+}
+
+// CancelRun cancels the in-flight automation, if any. Idempotent — calling it
+// when nothing is running is a no-op and returns false.
+func (a *App) CancelRun() bool {
+	a.currentRunMu.Lock()
+	cancel := a.currentRunCancel
+	a.currentRunMu.Unlock()
+	if cancel == nil {
+		return false
+	}
+	cancel()
+	return true
+}
+
+func errString(err error) string {
+	if err == nil {
+		return ""
+	}
+	return err.Error()
+}
+
+func truncTarget(t string) string {
+	if len(t) <= 120 {
+		return t
+	}
+	return t[:120] + "…"
+}
+
+// ImportResult is what ImportRecording returns to the frontend.
+type ImportResult struct {
+	Success  bool              `json:"success"`
+	Error    string            `json:"error,omitempty"`
+	Draft    AutomationPayload `json:"draft"`
+	Warnings []string          `json:"warnings,omitempty"`
+}
+
+// ImportRecording parses a recorder JSON export (currently Chrome DevTools
+// Recorder format) and returns an unpersisted AutomationPayload draft for the
+// frontend to populate the editor with.
+func (a *App) ImportRecording(rawJSON, platformID string) ImportResult {
+	if !safePlatformIDPattern.MatchString(platformID) {
+		return ImportResult{Success: false, Error: "invalid platform ID"}
+	}
+	imp := automation.PickImporter([]byte(rawJSON))
+	if imp == nil {
+		return ImportResult{Success: false, Error: "unrecognised recorder format"}
+	}
+	draft, err := imp.Import([]byte(rawJSON), platformID)
+	if err != nil {
+		return ImportResult{Success: false, Error: err.Error()}
+	}
+	steps := make([]AutomationStepPayload, len(draft.Steps))
+	for i, s := range draft.Steps {
+		steps[i] = AutomationStepPayload{
+			Action: string(s.Action), Target: s.Target,
+			Value: s.Value, Label: s.Label, Selectors: s.Selectors,
+		}
+	}
+	return ImportResult{
+		Success: true,
+		Draft: AutomationPayload{
+			PlatformID:  platformID,
+			Name:        draft.Title,
+			Description: draft.Description,
+			Steps:       steps,
+		},
+		Warnings: draft.Warnings,
+	}
 }
 
 func truncSel(s automation.Step) string {
