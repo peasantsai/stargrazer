@@ -2,12 +2,15 @@ package browser
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strconv"
 	"sync"
 	"time"
 
+	"github.com/chromedp/cdproto/input"
+	"github.com/chromedp/chromedp"
 	"stargrazer/internal/automation"
 	"stargrazer/internal/logger"
 )
@@ -67,6 +70,12 @@ func init() {
 	RegisterHandler(automation.ActionWait, handleWait)
 	RegisterHandler(automation.ActionEvaluate, handleEvaluate)
 	RegisterHandler(automation.ActionScroll, handleScroll)
+	RegisterHandler(automation.ActionDoubleClick, handleDoubleClick)
+	RegisterHandler(automation.ActionHover, handleHover)
+	RegisterHandler(automation.ActionKeyDown, handleKeyDown)
+	RegisterHandler(automation.ActionKeyUp, handleKeyUp)
+	RegisterHandler(automation.ActionSetViewport, handleSetViewport)
+	RegisterHandler(automation.ActionWaitForElement, handleWaitForElement)
 }
 
 func handleNavigate(ctx context.Context, m *Manager, step automation.Step) error {
@@ -97,4 +106,93 @@ func handleEvaluate(ctx context.Context, m *Manager, step automation.Step) error
 
 func handleScroll(ctx context.Context, m *Manager, step automation.Step) error {
 	return m.ExecScroll(ctx, step.Target, step.Selectors)
+}
+
+func handleDoubleClick(ctx context.Context, _ *Manager, step automation.Step) error {
+	sel := step.Target
+	tctx, cancel := context.WithTimeout(ctx, stepTimeout)
+	defer cancel()
+	return chromedp.Run(tctx,
+		chromedp.WaitVisible(sel, selectorOpt(sel)),
+		chromedp.DoubleClick(sel, selectorOpt(sel)),
+	)
+}
+
+func handleHover(ctx context.Context, _ *Manager, step automation.Step) error {
+	// chromedp lacks a first-class Hover; dispatch a mouseover via JS on the resolved element.
+	sel := step.Target
+	js := fmt.Sprintf(`(()=> {
+	  const el = document.querySelector(%q);
+	  if (!el) return false;
+	  const rect = el.getBoundingClientRect();
+	  ['mouseover','mousemove','mouseenter'].forEach(t =>
+	    el.dispatchEvent(new MouseEvent(t, {bubbles:true, clientX: rect.left+rect.width/2, clientY: rect.top+rect.height/2}))
+	  );
+	  return true;
+	})()`, sel)
+	tctx, cancel := context.WithTimeout(ctx, stepTimeout)
+	defer cancel()
+	var ok bool
+	if err := chromedp.Run(tctx,
+		chromedp.WaitVisible(sel, selectorOpt(sel)),
+		chromedp.Evaluate(js, &ok),
+	); err != nil {
+		return err
+	}
+	if !ok {
+		return fmt.Errorf("hover: element %q not found at dispatch time", sel)
+	}
+	return nil
+}
+
+func handleKeyDown(ctx context.Context, _ *Manager, step automation.Step) error {
+	if step.Value == "" {
+		return fmt.Errorf("keyDown: step.Value (the key) is empty")
+	}
+	tctx, cancel := context.WithTimeout(ctx, stepTimeout)
+	defer cancel()
+	return chromedp.Run(tctx, dispatchKey(input.KeyDown, step.Value))
+}
+
+func handleKeyUp(ctx context.Context, _ *Manager, step automation.Step) error {
+	if step.Value == "" {
+		return fmt.Errorf("keyUp: step.Value (the key) is empty")
+	}
+	tctx, cancel := context.WithTimeout(ctx, stepTimeout)
+	defer cancel()
+	return chromedp.Run(tctx, dispatchKey(input.KeyUp, step.Value))
+}
+
+// dispatchKey returns a chromedp.Action that dispatches a single keyDown/keyUp
+// to the currently-focused element via CDP Input.dispatchKeyEvent.
+func dispatchKey(eventType input.KeyType, key string) chromedp.Action {
+	return chromedp.ActionFunc(func(ctx context.Context) error {
+		return input.DispatchKeyEvent(eventType).WithKey(key).WithCode(key).Do(ctx)
+	})
+}
+
+func handleSetViewport(ctx context.Context, _ *Manager, step automation.Step) error {
+	var dims struct {
+		Width  int64 `json:"width"`
+		Height int64 `json:"height"`
+	}
+	if err := json.Unmarshal([]byte(step.Value), &dims); err != nil {
+		return fmt.Errorf("setViewport: parse step.Value as {width,height}: %w", err)
+	}
+	if dims.Width <= 0 || dims.Height <= 0 {
+		return fmt.Errorf("setViewport: width=%d height=%d must both be positive", dims.Width, dims.Height)
+	}
+	tctx, cancel := context.WithTimeout(ctx, stepTimeout)
+	defer cancel()
+	return chromedp.Run(tctx, chromedp.EmulateViewport(dims.Width, dims.Height))
+}
+
+func handleWaitForElement(ctx context.Context, _ *Manager, step automation.Step) error {
+	timeout := stepTimeout
+	if n, err := strconv.Atoi(step.Value); err == nil && n > 0 {
+		timeout = time.Duration(n) * time.Millisecond
+	}
+	tctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	return chromedp.Run(tctx, chromedp.WaitVisible(step.Target, selectorOpt(step.Target)))
 }
