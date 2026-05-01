@@ -48,6 +48,9 @@ func TestSQLiteSessionRepo_SetLoggedOutClearsUsername(t *testing.T) {
 	if got.Username != "" {
 		t.Errorf("Username should be cleared, got %q", got.Username)
 	}
+	if !got.LastLogin.IsZero() {
+		t.Errorf("LastLogin should be cleared on logout, got %v", got.LastLogin)
+	}
 }
 
 func TestSQLiteSessionRepo_UpdateCheckTimeOnlyTouchesLastCheck(t *testing.T) {

@@ -2,6 +2,7 @@ package social
 
 import (
 	"database/sql"
+	"errors"
 	"log"
 	"time"
 
@@ -40,7 +41,7 @@ func (r *SQLiteSessionRepo) Get(id Platform) AccountStatus {
 		string(id),
 	)
 	err := row.Scan(&username, &loggedIn, &lastLogin, &lastCheck)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return AccountStatus{PlatformID: id}
 	}
 	if err != nil {
@@ -80,6 +81,7 @@ func (r *SQLiteSessionRepo) SetLoggedOut(id Platform) {
 		ON CONFLICT(id) DO UPDATE SET
 			username   = '',
 			logged_in  = 0,
+			last_login = NULL,
 			last_check = excluded.last_check`,
 		string(id), now)
 	if err != nil {
