@@ -5,7 +5,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 )
 
 func TestAllPlatformsReturns6(t *testing.T) {
@@ -111,53 +110,6 @@ func TestNewSessionStoreCreatesEmptyStore(t *testing.T) {
 	}
 }
 
-func TestSetLoggedInAndGet(t *testing.T) {
-	tmpDir := t.TempDir()
-	fp := filepath.Join(tmpDir, "accounts.json")
-
-	s := &SessionStore{
-		accounts: make(map[Platform]*AccountStatus),
-		filePath: fp,
-	}
-
-	s.SetLoggedIn(Instagram, "testuser")
-
-	status := s.Get(Instagram)
-	if !status.LoggedIn {
-		t.Error("expected LoggedIn true")
-	}
-	if status.Username != "testuser" {
-		t.Errorf("expected username 'testuser', got %q", status.Username)
-	}
-	if status.PlatformID != Instagram {
-		t.Errorf("expected platform Instagram, got %s", status.PlatformID)
-	}
-	if status.LastLogin.IsZero() {
-		t.Error("expected non-zero LastLogin")
-	}
-}
-
-func TestSetLoggedOut(t *testing.T) {
-	tmpDir := t.TempDir()
-	fp := filepath.Join(tmpDir, "accounts.json")
-
-	s := &SessionStore{
-		accounts: make(map[Platform]*AccountStatus),
-		filePath: fp,
-	}
-
-	s.SetLoggedIn(Facebook, "fbuser")
-	s.SetLoggedOut(Facebook)
-
-	status := s.Get(Facebook)
-	if status.LoggedIn {
-		t.Error("expected LoggedIn false after SetLoggedOut")
-	}
-	if status.Username != "" {
-		t.Errorf("expected empty username after logout, got %q", status.Username)
-	}
-}
-
 func TestGetReturnsDefaultForUnknownPlatform(t *testing.T) {
 	tmpDir := t.TempDir()
 	fp := filepath.Join(tmpDir, "accounts.json")
@@ -173,34 +125,6 @@ func TestGetReturnsDefaultForUnknownPlatform(t *testing.T) {
 	}
 	if status.PlatformID != TikTok {
 		t.Errorf("expected PlatformID TikTok, got %s", status.PlatformID)
-	}
-}
-
-func TestGetAllReturnsAll6Entries(t *testing.T) {
-	tmpDir := t.TempDir()
-	fp := filepath.Join(tmpDir, "accounts.json")
-
-	s := &SessionStore{
-		accounts: make(map[Platform]*AccountStatus),
-		filePath: fp,
-	}
-
-	s.SetLoggedIn(Instagram, "ig_user")
-	s.SetLoggedIn(X, "x_user")
-
-	all := s.GetAll()
-	if len(all) != 6 {
-		t.Fatalf("expected 6 entries, got %d", len(all))
-	}
-
-	loggedIn := 0
-	for _, a := range all {
-		if a.LoggedIn {
-			loggedIn++
-		}
-	}
-	if loggedIn != 2 {
-		t.Errorf("expected 2 logged-in platforms, got %d", loggedIn)
 	}
 }
 
@@ -261,88 +185,6 @@ func TestSessionDirReturnsSameAsShared(t *testing.T) {
 	shared := SharedSessionDir()
 	if dir != shared {
 		t.Errorf("SessionDir(%q) = %q, SharedSessionDir() = %q; expected same", Instagram, dir, shared)
-	}
-}
-
-func TestSessionStorePersistence(t *testing.T) {
-	tmpDir := t.TempDir()
-	fp := filepath.Join(tmpDir, "accounts.json")
-
-	// Create and populate a store.
-	s1 := &SessionStore{
-		accounts: make(map[Platform]*AccountStatus),
-		filePath: fp,
-	}
-	s1.SetLoggedIn(YouTube, "yt_user")
-
-	// Create a new store from the same file to test loading.
-	s2 := &SessionStore{
-		accounts: make(map[Platform]*AccountStatus),
-		filePath: fp,
-	}
-	s2.load()
-
-	status := s2.Get(YouTube)
-	if !status.LoggedIn {
-		t.Error("expected YouTube to be logged in after reload")
-	}
-	if status.Username != "yt_user" {
-		t.Errorf("expected username 'yt_user', got %q", status.Username)
-	}
-}
-
-// --- UpdateCheckTime tests ---
-
-func TestUpdateCheckTime(t *testing.T) {
-	tmpDir := t.TempDir()
-	fp := filepath.Join(tmpDir, "accounts.json")
-	s := &SessionStore{accounts: make(map[Platform]*AccountStatus), filePath: fp}
-
-	s.SetLoggedIn(Instagram, "user")
-	before := s.Get(Instagram).LastCheck
-
-	time.Sleep(10 * time.Millisecond)
-	s.UpdateCheckTime(Instagram)
-
-	after := s.Get(Instagram).LastCheck
-	if !after.After(before) {
-		t.Errorf("expected LastCheck to be updated; before=%v, after=%v", before, after)
-	}
-}
-
-func TestUpdateCheckTimeNoOp(t *testing.T) {
-	tmpDir := t.TempDir()
-	fp := filepath.Join(tmpDir, "accounts.json")
-	s := &SessionStore{accounts: make(map[Platform]*AccountStatus), filePath: fp}
-
-	// UpdateCheckTime on non-existent platform should be no-op (no crash)
-	s.UpdateCheckTime(TikTok)
-
-	status := s.Get(TikTok)
-	if status.LoggedIn {
-		t.Error("expected platform to remain not logged in")
-	}
-}
-
-func TestUpdateCheckTimePersists(t *testing.T) {
-	tmpDir := t.TempDir()
-	fp := filepath.Join(tmpDir, "accounts.json")
-	s := &SessionStore{accounts: make(map[Platform]*AccountStatus), filePath: fp}
-
-	s.SetLoggedIn(Facebook, "fb_user")
-	time.Sleep(10 * time.Millisecond)
-	s.UpdateCheckTime(Facebook)
-
-	// Reload and verify
-	s2 := &SessionStore{accounts: make(map[Platform]*AccountStatus), filePath: fp}
-	s2.load()
-
-	status := s2.Get(Facebook)
-	if !status.LoggedIn {
-		t.Error("expected Facebook to still be logged in after reload")
-	}
-	if status.LastCheck.IsZero() {
-		t.Error("expected non-zero LastCheck after reload")
 	}
 }
 
@@ -456,40 +298,6 @@ func TestNewSessionStoreLoadsExistingFile(t *testing.T) {
 	}
 	if status.Username != "pre_user" {
 		t.Errorf("expected username 'pre_user', got %q", status.Username)
-	}
-}
-
-// --- Multiple SetLoggedIn overwrite ---
-
-func TestSetLoggedInOverwrite(t *testing.T) {
-	tmpDir := t.TempDir()
-	fp := filepath.Join(tmpDir, "accounts.json")
-	s := &SessionStore{accounts: make(map[Platform]*AccountStatus), filePath: fp}
-
-	s.SetLoggedIn(Instagram, "user1")
-	s.SetLoggedIn(Instagram, "user2")
-
-	status := s.Get(Instagram)
-	if status.Username != "user2" {
-		t.Errorf("expected username 'user2' after overwrite, got %q", status.Username)
-	}
-}
-
-// --- SetLoggedOut on non-existent platform ---
-
-func TestSetLoggedOutNonExistent(t *testing.T) {
-	tmpDir := t.TempDir()
-	fp := filepath.Join(tmpDir, "accounts.json")
-	s := &SessionStore{accounts: make(map[Platform]*AccountStatus), filePath: fp}
-
-	// Should not crash
-	s.SetLoggedOut(LinkedIn)
-	status := s.Get(LinkedIn)
-	if status.LoggedIn {
-		t.Error("expected LoggedIn false")
-	}
-	if status.LastCheck.IsZero() {
-		t.Error("expected non-zero LastCheck after SetLoggedOut")
 	}
 }
 

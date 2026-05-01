@@ -85,7 +85,8 @@ type AccountStatus struct {
 	LastCheck  time.Time `json:"lastCheck"`
 }
 
-// SessionStore persists login status across app restarts.
+// SessionStore reads per-platform login state from a JSON file. Read-only as
+// of DSG-001-P2.
 type SessionStore struct {
 	mu       sync.RWMutex
 	accounts map[Platform]*AccountStatus
@@ -127,43 +128,6 @@ func (s *SessionStore) Get(id Platform) AccountStatus {
 		return *acct
 	}
 	return AccountStatus{PlatformID: id}
-}
-
-// SetLoggedIn marks a platform as logged in and persists.
-func (s *SessionStore) SetLoggedIn(id Platform, username string) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	now := time.Now()
-	s.accounts[id] = &AccountStatus{
-		PlatformID: id,
-		LoggedIn:   true,
-		Username:   username,
-		LastLogin:  now,
-		LastCheck:  now,
-	}
-	s.save()
-}
-
-// SetLoggedOut marks a platform as logged out and persists.
-func (s *SessionStore) SetLoggedOut(id Platform) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.accounts[id] = &AccountStatus{
-		PlatformID: id,
-		LoggedIn:   false,
-		LastCheck:  time.Now(),
-	}
-	s.save()
-}
-
-// UpdateCheckTime updates the last-checked timestamp.
-func (s *SessionStore) UpdateCheckTime(id Platform) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if acct, ok := s.accounts[id]; ok {
-		acct.LastCheck = time.Now()
-		s.save()
-	}
 }
 
 // SessionDir returns the persistent user-data-dir for a platform's browser session.
@@ -235,19 +199,6 @@ func (s *SessionStore) load() {
 		a := accounts[i]
 		s.accounts[a.PlatformID] = &a
 	}
-}
-
-func (s *SessionStore) save() {
-	accounts := make([]AccountStatus, 0, len(s.accounts))
-	for _, a := range s.accounts {
-		accounts = append(accounts, *a)
-	}
-	data, err := json.MarshalIndent(accounts, "", "  ")
-	if err != nil {
-		return
-	}
-	os.MkdirAll(filepath.Dir(s.filePath), 0700)
-	os.WriteFile(s.filePath, data, 0600)
 }
 
 // EnsureSessionDir creates the shared session directory if it doesn't exist.
