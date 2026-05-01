@@ -75,6 +75,10 @@ func TestSQLiteRepo_SaveUpdateExistingID(t *testing.T) {
 	if list[0].Name != "v2" {
 		t.Errorf("Name not updated: %q", list[0].Name)
 	}
+	// CreatedAt must not change across updates.
+	if !list[0].CreatedAt.Equal(first.CreatedAt) {
+		t.Errorf("CreatedAt changed across update: first=%v after=%v", first.CreatedAt, list[0].CreatedAt)
+	}
 }
 
 func TestSQLiteRepo_DeleteRemovesRow(t *testing.T) {

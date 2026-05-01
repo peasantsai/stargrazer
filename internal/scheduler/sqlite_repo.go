@@ -49,17 +49,17 @@ func (r *SQLiteRepo) Get(id string) (*Job, error) {
 		WHERE id = ?`, id)
 	j, err := scanJob(row)
 	if errors.Is(err, sql.ErrNoRows) {
-		return nil, fmt.Errorf("schedule %q not found", id)
+		return nil, fmt.Errorf("schedule %q: %w", id, sql.ErrNoRows)
 	}
 	return j, err
 }
 
 func (r *SQLiteRepo) Save(j *Job) error {
 	if j == nil {
-		return errors.New("Save: nil job")
+		return errors.New("save: nil job")
 	}
 	if j.ID == "" {
-		return errors.New("Save: ID required (caller assigns)")
+		return errors.New("save: ID required (caller assigns)")
 	}
 	platformsJSON, err := json.Marshal(j.Platforms)
 	if err != nil {
@@ -112,7 +112,10 @@ func (r *SQLiteRepo) Delete(id string) error {
 	if err != nil {
 		return fmt.Errorf("delete schedule %s: %w", id, err)
 	}
-	n, _ := res.RowsAffected()
+	n, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("rows affected: %w", err)
+	}
 	if n == 0 {
 		return fmt.Errorf("schedule %q not found", id)
 	}

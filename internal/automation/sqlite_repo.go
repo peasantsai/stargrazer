@@ -59,7 +59,7 @@ func (r *SQLiteRepo) List(platformID string) ([]Config, error) {
 
 func (r *SQLiteRepo) Save(cfg Config) (Config, error) {
 	if cfg.PlatformID == "" {
-		return Config{}, errors.New("Save: PlatformID required")
+		return Config{}, errors.New("save: platformID required")
 	}
 	if cfg.ID == "" {
 		cfg.ID = uuid.NewString()
@@ -114,7 +114,10 @@ func (r *SQLiteRepo) RecordRun(platformID, id string) error {
 	if err != nil {
 		return fmt.Errorf("record run for %s: %w", id, err)
 	}
-	n, _ := res.RowsAffected()
+	n, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("rows affected: %w", err)
+	}
 	if n == 0 {
 		return fmt.Errorf("automation %q not found for platform %q", id, platformID)
 	}

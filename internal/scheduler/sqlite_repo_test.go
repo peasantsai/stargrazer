@@ -58,6 +58,7 @@ func TestSQLiteRepo_SaveUpdatePreservesID(t *testing.T) {
 	repo := NewSQLiteRepo(dbtest.NewMemDB(t))
 	j := newJob()
 	_ = repo.Save(j)
+	before, _ := repo.Get(j.ID)
 	j.Status = JobStatusPaused
 	j.LastResult = "manual pause"
 	if err := repo.Save(j); err != nil {
@@ -69,6 +70,10 @@ func TestSQLiteRepo_SaveUpdatePreservesID(t *testing.T) {
 	}
 	if got.LastResult != "manual pause" {
 		t.Errorf("LastResult not updated: %q", got.LastResult)
+	}
+	// CreatedAt must not change across updates.
+	if !got.CreatedAt.Equal(before.CreatedAt) {
+		t.Errorf("CreatedAt changed across update: original=%v after=%v", before.CreatedAt, got.CreatedAt)
 	}
 }
 
