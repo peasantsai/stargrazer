@@ -119,6 +119,7 @@ export interface AutomationStepData {
   target: string;
   value: string;
   label: string;
+  selectors?: string[][];
 }
 
 export interface AutomationData {

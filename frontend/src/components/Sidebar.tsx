@@ -7,6 +7,9 @@ interface Props {
   readonly view: View;
   readonly setView: (v: View) => void;
   readonly browserStatus: string;
+  readonly browserLoading: boolean;
+  readonly onStartBrowser: () => void;
+  readonly onStopBrowser: () => void;
   readonly open: boolean;
   readonly onToggle: () => void;
   readonly account: AccountInfo;
@@ -22,7 +25,8 @@ const PLATFORM_LABELS: Record<string, string> = {
   x: 'X',
 };
 
-export function Sidebar({ view, setView, browserStatus, open, onToggle, account, updateAccount }: Props) {
+export function Sidebar({ view, setView, browserStatus, browserLoading, onStartBrowser, onStopBrowser, open, onToggle, account, updateAccount }: Props) {
+  const browserRunning = browserStatus === 'running';
   const [showAccountModal, setShowAccountModal] = useState(false);
 
   if (!open) return null;
@@ -92,6 +96,23 @@ export function Sidebar({ view, setView, browserStatus, open, onToggle, account,
           );
         })}
       </nav>
+
+      <div className="sidebar-browser">
+        <div className="sidebar-browser-status">
+          <span className={`status-dot ${browserStatus}`} />
+          <span className="sidebar-browser-label">Browser</span>
+          <span className="sidebar-browser-state">{browserStatus}</span>
+        </div>
+        {browserRunning ? (
+          <button className="btn-danger sidebar-browser-btn" onClick={onStopBrowser} disabled={browserLoading}>
+            {browserLoading ? 'Stopping…' : 'Stop Browser'}
+          </button>
+        ) : (
+          <button className="btn-primary sidebar-browser-btn" onClick={onStartBrowser} disabled={browserLoading}>
+            {browserLoading ? 'Starting…' : 'Start Browser'}
+          </button>
+        )}
+      </div>
 
       <div className="sidebar-account">
         <button className="account-card" onClick={() => setShowAccountModal(true)}>

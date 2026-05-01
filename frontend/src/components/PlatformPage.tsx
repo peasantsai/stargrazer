@@ -138,12 +138,26 @@ interface RecorderJson {
   steps?: RecorderStep[];
 }
 
+// bestLabel picks the most human-readable selector for a label.
+function bestLabel(selectors?: string[][]): string {
+  if (!selectors) return '';
+  for (const group of selectors) {
+    for (const sel of group) {
+      if (sel.startsWith('text/')) return sel.replace('text/', '');
+      if (sel.startsWith('aria/')) return sel.replace('aria/', '').split('[')[0].trim();
+    }
+  }
+  return selectors[0]?.[0] ?? '';
+}
+
 function convertRecorderJson(json: RecorderJson): AutomationStepData[] {
   if (!json.steps) return [];
   const steps: AutomationStepData[] = [];
 
   for (const s of json.steps) {
-    const selector = s.selectors?.[0]?.[0] ?? '';
+    const sels = s.selectors ?? [];
+    const primarySel = sels[0]?.[0] ?? '';
+    const label = bestLabel(sels) || primarySel;
 
     switch (s.type) {
       case 'navigate':
@@ -153,13 +167,13 @@ function convertRecorderJson(json: RecorderJson): AutomationStepData[] {
         break;
       case 'click':
       case 'doubleClick':
-        if (selector) {
-          steps.push({ action: 'click', target: selector, value: '', label: s.type === 'doubleClick' ? `Double click ${selector}` : `Click ${selector}` });
+        if (sels.length > 0 || primarySel) {
+          steps.push({ action: 'click', target: primarySel, value: '', label: `Click ${label}`, selectors: sels.length > 0 ? sels : undefined });
         }
         break;
       case 'change':
-        if (selector && s.value !== undefined) {
-          steps.push({ action: 'type', target: selector, value: s.value, label: `Type into ${selector}` });
+        if ((sels.length > 0 || primarySel) && s.value !== undefined) {
+          steps.push({ action: 'type', target: primarySel, value: s.value, label: `Type into ${label}`, selectors: sels.length > 0 ? sels : undefined });
         }
         break;
       case 'keyDown':
@@ -169,8 +183,8 @@ function convertRecorderJson(json: RecorderJson): AutomationStepData[] {
         }
         break;
       case 'scroll':
-        if (selector) {
-          steps.push({ action: 'scroll', target: selector, value: '', label: `Scroll to ${selector}` });
+        if (sels.length > 0 || primarySel) {
+          steps.push({ action: 'scroll', target: primarySel, value: '', label: `Scroll to ${label}`, selectors: sels.length > 0 ? sels : undefined });
         }
         break;
       case 'setViewport':
@@ -179,8 +193,8 @@ function convertRecorderJson(json: RecorderJson): AutomationStepData[] {
         }
         break;
       case 'waitForElement':
-        if (selector) {
-          steps.push({ action: 'wait', target: '', value: '1000', label: `Wait for ${selector}` });
+        if (primarySel) {
+          steps.push({ action: 'wait', target: '', value: '1000', label: `Wait for ${label}` });
         }
         break;
       default:

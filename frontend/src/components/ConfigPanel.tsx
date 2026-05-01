@@ -19,9 +19,6 @@ interface Props {
   readonly onBrowserStatusChange: (s: string) => void;
   readonly addMessage: (type: ChatMessage['type'], text: string) => void;
   readonly browserStatus: string;
-  readonly loading: boolean;
-  readonly onStartBrowser: () => void;
-  readonly onStopBrowser: () => void;
   readonly theme: Theme;
   readonly setTheme: (t: Theme) => void;
   readonly platforms: PlatformResponse[];
@@ -29,7 +26,7 @@ interface Props {
 
 export function ConfigPanel({
   onSaved, sidebarOpen, onToggleSidebar, onBrowserStatusChange, addMessage,
-  browserStatus, loading, onStartBrowser, onStopBrowser, theme, setTheme, platforms,
+  browserStatus, theme, setTheme, platforms,
 }: Props) {
   const [config, setConfig] = useState<BrowserConfigResponse | null>(null);
   const [saving, setSaving] = useState(false);
@@ -107,7 +104,6 @@ export function ConfigPanel({
 
   if (!config) return <div className="config-panel"><p>Loading...</p></div>;
 
-  const isRunning = browserStatus === 'running';
   const connectedPlatforms = platforms.filter(p => p.loggedIn).length;
   const activeFlags = config.extraFlags ?? [];
   const activeCount = activeFlags.length;
@@ -162,17 +158,6 @@ export function ConfigPanel({
         <div className="settings-stat">
           <span className="settings-stat-label">Flags</span>
           <span className="settings-stat-value">{activeCount} active</span>
-        </div>
-        <div className="settings-stat-actions">
-          {isRunning ? (
-            <button className="btn-danger" onClick={onStopBrowser} disabled={loading} style={{ padding: '6px 14px', fontSize: 12 }}>
-              {loading ? 'Stopping...' : 'Stop Browser'}
-            </button>
-          ) : (
-            <button className="btn-primary" onClick={onStartBrowser} disabled={loading} style={{ padding: '6px 14px', fontSize: 12 }}>
-              {loading ? 'Starting...' : 'Start Browser'}
-            </button>
-          )}
         </div>
       </div>
 

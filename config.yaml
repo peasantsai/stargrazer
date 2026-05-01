@@ -8,7 +8,7 @@ window:
   width: 1024
   height: 768
   min_width: 800
-  min_height: 600
+  min_height: 650
 
 # Scheduler settings.
 scheduler:

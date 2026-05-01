@@ -5,6 +5,7 @@ export namespace main {
 	    target: string;
 	    value: string;
 	    label: string;
+	    selectors?: string[][];
 	
 	    static createFrom(source: any = {}) {
 	        return new AutomationStepPayload(source);
@@ -16,6 +17,7 @@ export namespace main {
 	        this.target = source["target"];
 	        this.value = source["value"];
 	        this.label = source["label"];
+	        this.selectors = source["selectors"];
 	    }
 	}
 	export class AutomationPayload {

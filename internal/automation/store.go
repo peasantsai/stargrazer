@@ -33,6 +33,11 @@ type Step struct {
 	Value string `json:"value"`
 	// Label is a human-readable description shown in the UI.
 	Label string `json:"label"`
+	// Selectors holds Chrome Recorder-style fallback selector groups.
+	// Each outer element is an alternative strategy (CSS, XPath, ARIA, text, pierce).
+	// The execution engine tries each until one succeeds.
+	// When empty, Target is used as the sole selector.
+	Selectors [][]string `json:"selectors,omitempty"`
 }
 
 // Config is a named, platform-scoped automation workflow.

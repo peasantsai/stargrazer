@@ -620,10 +620,11 @@ func formatTime(t time.Time) string {
 
 // AutomationStepPayload is the wire-format for a single automation step.
 type AutomationStepPayload struct {
-	Action string `json:"action"`
-	Target string `json:"target"`
-	Value  string `json:"value"`
-	Label  string `json:"label"`
+	Action    string     `json:"action"`
+	Target    string     `json:"target"`
+	Value     string     `json:"value"`
+	Label     string     `json:"label"`
+	Selectors [][]string `json:"selectors,omitempty"`
 }
 
 // AutomationPayload is the wire-format for an automation config.
@@ -649,7 +650,7 @@ func toAutomationPayload(c automation.Config) AutomationPayload {
 	for i, s := range c.Steps {
 		steps[i] = AutomationStepPayload{
 			Action: string(s.Action), Target: s.Target,
-			Value: s.Value, Label: s.Label,
+			Value: s.Value, Label: s.Label, Selectors: s.Selectors,
 		}
 	}
 	return AutomationPayload{
@@ -689,6 +690,7 @@ func (a *App) SaveAutomation(platformID string, req AutomationPayload) Automatio
 		steps[i] = automation.Step{
 			Action: automation.Action(s.Action),
 			Target: s.Target, Value: s.Value, Label: s.Label,
+			Selectors: s.Selectors,
 		}
 	}
 	cfg := automation.Config{
@@ -718,7 +720,21 @@ func (a *App) DeleteAutomation(platformID, id string) bool {
 	return ok
 }
 
-// RunAutomation executes a saved automation step-by-step via CDP.
+// findAutomation loads and returns an automation config by platform and ID.
+func (a *App) findAutomation(platformID, id string) (*automation.Config, error) {
+	configs, err := a.automations.List(platformID)
+	if err != nil {
+		return nil, err
+	}
+	for i := range configs {
+		if configs[i].ID == id {
+			return &configs[i], nil
+		}
+	}
+	return nil, fmt.Errorf("automation not found")
+}
+
+// RunAutomation executes a saved automation step-by-step via chromedp.
 func (a *App) RunAutomation(platformID, id string) RunAutomationResponse {
 	if !safePlatformIDPattern.MatchString(platformID) {
 		return RunAutomationResponse{Success: false, Message: "invalid platform ID"}
@@ -726,38 +742,33 @@ func (a *App) RunAutomation(platformID, id string) RunAutomationResponse {
 	if !a.browser.IsRunning() {
 		return RunAutomationResponse{Success: false, Message: "browser is not running — start it first"}
 	}
-	configs, err := a.automations.List(platformID)
+	cfg, err := a.findAutomation(platformID, id)
 	if err != nil {
 		return RunAutomationResponse{Success: false, Message: err.Error()}
 	}
-	var cfg *automation.Config
-	for i := range configs {
-		if configs[i].ID == id {
-			cfg = &configs[i]
-			break
-		}
+
+	ctx, cancel, err := a.browser.ConnectChromedp(context.Background())
+	if err != nil {
+		return RunAutomationResponse{Success: false, Message: fmt.Sprintf("CDP connect: %v", err)}
 	}
-	if cfg == nil {
-		return RunAutomationResponse{Success: false, Message: "automation not found"}
-	}
-	logger.Info("automation", fmt.Sprintf("Running %q (%d steps) for %s", cfg.Name, len(cfg.Steps), platformID))
+	defer cancel()
+
+	logger.Info("automation", fmt.Sprintf("Running %q (%d steps) for %s via chromedp", cfg.Name, len(cfg.Steps), platformID))
 	for i, step := range cfg.Steps {
-		if err := a.executeStep(i, step); err != nil {
+		if err := a.executeStep(ctx, i, step); err != nil {
 			msg := fmt.Sprintf("step %d/%d failed (%s): %v", i+1, len(cfg.Steps), step.Action, err)
 			logger.Error("automation", msg)
 			return RunAutomationResponse{Success: false, Message: msg}
 		}
 	}
-	if err := a.automations.RecordRun(platformID, id); err != nil {
-		logger.Warn("automation", fmt.Sprintf("RecordRun: %v", err))
-	}
+	a.automations.RecordRun(platformID, id)
 	msg := fmt.Sprintf("'%s' completed successfully (%d steps)", cfg.Name, len(cfg.Steps))
 	logger.Info("automation", msg)
 	return RunAutomationResponse{Success: true, Message: msg}
 }
 
-// TestAutomation starts the browser if needed, opens a new tab for the platform,
-// executes the automation, waits 5 seconds, then cleans up the tab/browser.
+// TestAutomation starts the browser if needed, navigates to the platform,
+// executes the automation via chromedp, waits 5 seconds, then cleans up.
 func (a *App) TestAutomation(platformID, id string) RunAutomationResponse {
 	if !safePlatformIDPattern.MatchString(platformID) {
 		return RunAutomationResponse{Success: false, Message: "invalid platform ID"}
@@ -766,20 +777,9 @@ func (a *App) TestAutomation(platformID, id string) RunAutomationResponse {
 	if platform == nil {
 		return RunAutomationResponse{Success: false, Message: fmt.Sprintf("unknown platform: %s", platformID)}
 	}
-
-	configs, err := a.automations.List(platformID)
+	cfg, err := a.findAutomation(platformID, id)
 	if err != nil {
 		return RunAutomationResponse{Success: false, Message: err.Error()}
-	}
-	var cfg *automation.Config
-	for i := range configs {
-		if configs[i].ID == id {
-			cfg = &configs[i]
-			break
-		}
-	}
-	if cfg == nil {
-		return RunAutomationResponse{Success: false, Message: "automation not found"}
 	}
 
 	// Auto-start browser if not running.
@@ -788,97 +788,78 @@ func (a *App) TestAutomation(platformID, id string) RunAutomationResponse {
 		logger.Info("automation", "Browser not running — auto-starting for test")
 		sessionDir, _ := social.EnsureSessionDir(social.Platform(platformID))
 		if err := a.browser.StartWithOptions(sessionDir, ""); err != nil {
-			msg := fmt.Sprintf("auto-start browser failed: %v", err)
-			logger.Error("automation", msg)
-			return RunAutomationResponse{Success: false, Message: msg}
+			return RunAutomationResponse{Success: false, Message: fmt.Sprintf("auto-start failed: %v", err)}
 		}
 		browserWasStarted = true
 		time.Sleep(2 * time.Second)
-		logger.Info("automation", "Browser auto-started for test")
 	}
 
-	// Open a new tab for the platform.
-	logger.Info("automation", fmt.Sprintf("Opening new tab for %s: %s", platform.Name, platform.URL))
-	tabID, tabErr := a.browser.OpenNewTab(platform.URL)
-	if tabErr != nil {
-		logger.Error("automation", fmt.Sprintf("Failed to open tab: %v", tabErr))
+	// Connect chromedp to the running browser.
+	ctx, cancel, err := a.browser.ConnectChromedp(context.Background())
+	if err != nil {
 		if browserWasStarted {
 			a.browser.Stop()
 		}
-		return RunAutomationResponse{Success: false, Message: fmt.Sprintf("failed to open tab: %v", tabErr)}
+		return RunAutomationResponse{Success: false, Message: fmt.Sprintf("CDP connect: %v", err)}
 	}
-	logger.Info("automation", fmt.Sprintf("Tab opened (ID: %s), waiting for page load...", tabID))
+	defer cancel()
+
+	// Navigate to the platform URL first, then wait for page ready.
+	logger.Info("automation", fmt.Sprintf("Navigating to %s: %s", platform.Name, platform.URL))
+	if err := a.browser.ExecNavigate(ctx, platform.URL); err != nil {
+		if browserWasStarted {
+			a.browser.Stop()
+		}
+		return RunAutomationResponse{Success: false, Message: fmt.Sprintf("navigate: %v", err)}
+	}
+	// Extra wait for dynamic content to render.
 	time.Sleep(3 * time.Second)
 
 	// Execute all steps.
 	logger.Info("automation", fmt.Sprintf("Testing %q (%d steps) for %s", cfg.Name, len(cfg.Steps), platformID))
 	var stepErr error
 	for i, step := range cfg.Steps {
-		if err := a.executeStep(i, step); err != nil {
+		if err := a.executeStep(ctx, i, step); err != nil {
 			stepErr = err
-			msg := fmt.Sprintf("step %d/%d failed (%s): %v", i+1, len(cfg.Steps), step.Action, err)
-			logger.Error("automation", msg)
+			logger.Error("automation", fmt.Sprintf("step %d/%d failed (%s): %v", i+1, len(cfg.Steps), step.Action, err))
 			break
 		}
 	}
 
-	// Wait 5 seconds before cleanup so user can observe the result.
+	// Wait 5 seconds so user can observe the result.
 	logger.Info("automation", "Waiting 5 seconds before cleanup...")
 	time.Sleep(5 * time.Second)
 
-	// Cleanup: close the tab we opened.
-	if tabID != "" {
-		logger.Info("automation", fmt.Sprintf("Closing test tab %s", tabID))
-		if err := a.browser.CloseTab(tabID); err != nil {
-			logger.Warn("automation", fmt.Sprintf("Failed to close tab: %v", err))
-		}
-	}
-
-	// Stop browser if we started it.
+	// Cleanup.
 	if browserWasStarted {
 		logger.Info("automation", "Stopping auto-started browser")
 		a.browser.Stop()
 	}
 
+	a.automations.RecordRun(platformID, id)
 	if stepErr != nil {
-		if err := a.automations.RecordRun(platformID, id); err != nil {
-			logger.Warn("automation", fmt.Sprintf("RecordRun: %v", err))
-		}
 		return RunAutomationResponse{Success: false, Message: stepErr.Error()}
-	}
-	if err := a.automations.RecordRun(platformID, id); err != nil {
-		logger.Warn("automation", fmt.Sprintf("RecordRun: %v", err))
 	}
 	msg := fmt.Sprintf("Test '%s' completed successfully (%d steps)", cfg.Name, len(cfg.Steps))
 	logger.Info("automation", msg)
 	return RunAutomationResponse{Success: true, Message: msg}
 }
 
-// executeStep dispatches a single automation step to the appropriate browser method.
-func (a *App) executeStep(index int, step automation.Step) error {
+// executeStep dispatches a single automation step via the chromedp execution engine.
+// Uses multi-selector fallback: tries each selector from the Chrome Recorder
+// selectors array (prioritizing ARIA/text for stability) until one works.
+func (a *App) executeStep(ctx context.Context, index int, step automation.Step) error {
 	stepNum := index + 1
 	switch step.Action {
 	case automation.ActionNavigate:
 		logger.Info("automation", fmt.Sprintf("  step %d: navigate → %s", stepNum, step.Target))
-		err := a.browser.NavigateToURL(step.Target)
-		if err == nil {
-			logger.Debug("automation", fmt.Sprintf("  step %d: navigate OK", stepNum))
-		}
-		return err
+		return a.browser.ExecNavigate(ctx, step.Target)
 	case automation.ActionClick:
-		logger.Info("automation", fmt.Sprintf("  step %d: click → %s", stepNum, step.Target))
-		err := a.browser.ClickElement(step.Target)
-		if err == nil {
-			logger.Debug("automation", fmt.Sprintf("  step %d: click OK", stepNum))
-		}
-		return err
+		logger.Info("automation", fmt.Sprintf("  step %d: click → %s (%d selector groups)", stepNum, truncSel(step), countSelectors(step)))
+		return a.browser.ExecClick(ctx, step.Target, step.Selectors)
 	case automation.ActionType:
-		logger.Info("automation", fmt.Sprintf("  step %d: type → %s (value: %q)", stepNum, step.Target, step.Value))
-		err := a.browser.TypeText(step.Target, step.Value)
-		if err == nil {
-			logger.Debug("automation", fmt.Sprintf("  step %d: type OK", stepNum))
-		}
-		return err
+		logger.Info("automation", fmt.Sprintf("  step %d: type → %s value=%q (%d selector groups)", stepNum, truncSel(step), step.Value, countSelectors(step)))
+		return a.browser.ExecType(ctx, step.Target, step.Value, step.Selectors)
 	case automation.ActionWait:
 		ms := 1000
 		if n, err := strconv.Atoi(step.Value); err == nil && n > 0 {
@@ -889,19 +870,27 @@ func (a *App) executeStep(index int, step automation.Step) error {
 		return nil
 	case automation.ActionEvaluate:
 		logger.Info("automation", fmt.Sprintf("  step %d: evaluate JS (%d chars)", stepNum, len(step.Value)))
-		_, err := a.browser.EvaluateExpression(step.Value)
-		if err == nil {
-			logger.Debug("automation", fmt.Sprintf("  step %d: evaluate OK", stepNum))
-		}
-		return err
+		return a.browser.ExecEvaluate(ctx, step.Value)
 	case automation.ActionScroll:
-		logger.Info("automation", fmt.Sprintf("  step %d: scroll → %s", stepNum, step.Target))
-		err := a.browser.ScrollToElement(step.Target)
-		if err == nil {
-			logger.Debug("automation", fmt.Sprintf("  step %d: scroll OK", stepNum))
-		}
-		return err
+		logger.Info("automation", fmt.Sprintf("  step %d: scroll → %s (%d selector groups)", stepNum, truncSel(step), countSelectors(step)))
+		return a.browser.ExecScroll(ctx, step.Target, step.Selectors)
 	default:
 		return fmt.Errorf("unknown action: %q", step.Action)
 	}
+}
+
+func truncSel(s automation.Step) string {
+	t := s.Target
+	if len(t) > 60 {
+		t = t[:60] + "..."
+	}
+	return t
+}
+
+func countSelectors(s automation.Step) int {
+	n := len(s.Selectors)
+	if n == 0 && s.Target != "" {
+		return 1
+	}
+	return n
 }

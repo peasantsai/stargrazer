@@ -90,9 +90,6 @@ function App() {
           onBrowserStatusChange={setBrowserStatus}
           addMessage={addMessage}
           browserStatus={browserStatus}
-          loading={loading}
-          onStartBrowser={handleStartBrowser}
-          onStopBrowser={handleStopBrowser}
           theme={theme}
           setTheme={setTheme}
           platforms={platforms}
@@ -122,6 +119,9 @@ function App() {
         view={view}
         setView={setView}
         browserStatus={browserStatus}
+        browserLoading={loading}
+        onStartBrowser={handleStartBrowser}
+        onStopBrowser={handleStopBrowser}
         open={sidebarOpen}
         onToggle={() => setSidebarOpen(p => !p)}
         account={account}
