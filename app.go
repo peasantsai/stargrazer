@@ -16,8 +16,12 @@ import (
 	"stargrazer/internal/browser"
 	"stargrazer/internal/config"
 	"stargrazer/internal/logger"
+	"stargrazer/internal/planner"
+	"stargrazer/internal/profile"
+	"stargrazer/internal/recording"
 	"stargrazer/internal/scheduler"
 	"stargrazer/internal/social"
+	"stargrazer/internal/template"
 	"stargrazer/internal/workflow"
 
 	wailsRuntime "github.com/wailsapp/wails/v2/pkg/runtime"
@@ -34,6 +38,10 @@ type App struct {
 	sessions    social.SessionRepo
 	scheduler   *scheduler.Scheduler
 	automations automation.Repository
+	templates   template.Repository
+	profiles    profile.Repository
+	recordings  recording.Repository
+	resolver    planner.Resolver
 
 	currentRunMu          sync.Mutex
 	currentRunCancel      context.CancelFunc
@@ -41,15 +49,34 @@ type App struct {
 	currentAutomationID   string
 }
 
+// RunOptions is the wire-level run-time variable bag passed from the frontend.
+type RunOptions struct {
+	Vars      map[string]any `json:"vars"`
+	ProfileID string         `json:"profileId"`
+}
+
 // NewApp constructs an App with explicit dependencies. Callers (main.go) own
 // the lifecycle of the SQLite handle and the repos that wrap it.
-func NewApp(automations automation.Repository, sessions social.SessionRepo, sched *scheduler.Scheduler, b *browser.Manager) *App {
+func NewApp(
+	automations automation.Repository,
+	sessions social.SessionRepo,
+	sched *scheduler.Scheduler,
+	b *browser.Manager,
+	templates template.Repository,
+	profiles profile.Repository,
+	recordings recording.Repository,
+	resolver planner.Resolver,
+) *App {
 	return &App{
 		getCtx:      func() context.Context { return context.Background() },
 		browser:     b,
 		sessions:    sessions,
 		scheduler:   sched,
 		automations: automations,
+		templates:   templates,
+		profiles:    profiles,
+		recordings:  recordings,
+		resolver:    resolver,
 	}
 }
 
@@ -740,16 +767,28 @@ func (a *App) findAutomation(platformID, id string) (*automation.Config, error) 
 }
 
 // RunAutomation executes a saved automation step-by-step via chromedp.
-func (a *App) RunAutomation(platformID, id string) RunAutomationResponse {
+// opts carries the variable bag and optional profile ID; the planner merges
+// them with the automation's default profile before inlining templates.
+func (a *App) RunAutomation(platformID, id string, opts RunOptions) RunAutomationResponse {
 	if !safePlatformIDPattern.MatchString(platformID) {
 		return RunAutomationResponse{Success: false, Message: "invalid platform ID"}
-	}
-	if !a.browser.IsRunning() {
-		return RunAutomationResponse{Success: false, Message: "browser is not running — start it first"}
 	}
 	cfg, err := a.findAutomation(platformID, id)
 	if err != nil {
 		return RunAutomationResponse{Success: false, Message: err.Error()}
+	}
+
+	plan, err := a.resolver.PreparePlan(cfg, planner.RunOptions{Vars: opts.Vars, ProfileID: opts.ProfileID})
+	if err != nil {
+		return RunAutomationResponse{Success: false, Message: fmt.Sprintf("prepare plan: %v", err)}
+	}
+	for _, w := range plan.Warnings {
+		a.emitRunWarning(cfg.ID, cfg.Name, w)
+		logger.Info("automation", "plan warning: "+w)
+	}
+
+	if !a.browser.IsRunning() {
+		return RunAutomationResponse{Success: false, Message: "browser is not running — start it first"}
 	}
 
 	ctx, cancel, err := a.browser.ConnectChromedp(context.Background())
@@ -761,23 +800,23 @@ func (a *App) RunAutomation(platformID, id string) RunAutomationResponse {
 	a.beginRun(cfg.ID, cfg.Name, cancel)
 	defer a.endRun()
 
-	logger.Info("automation", fmt.Sprintf("Running %q (%d steps) for %s via chromedp", cfg.Name, len(cfg.Steps), platformID))
-	for i, step := range cfg.Steps {
-		if err := a.executeStep(ctx, i, len(cfg.Steps), step); err != nil {
-			msg := fmt.Sprintf("step %d/%d failed (%s): %v", i+1, len(cfg.Steps), step.Action, err)
+	logger.Info("automation", fmt.Sprintf("Running %q (%d steps) for %s via chromedp", cfg.Name, len(plan.Steps), platformID))
+	for i, step := range plan.Steps {
+		if err := a.executeStep(ctx, i, len(plan.Steps), step); err != nil {
+			msg := fmt.Sprintf("step %d/%d failed (%s): %v", i+1, len(plan.Steps), step.Action, err)
 			logger.Error("automation", msg)
 			return RunAutomationResponse{Success: false, Message: msg}
 		}
 	}
 	a.automations.RecordRun(platformID, id)
-	msg := fmt.Sprintf("'%s' completed successfully (%d steps)", cfg.Name, len(cfg.Steps))
+	msg := fmt.Sprintf("'%s' completed successfully (%d steps)", cfg.Name, len(plan.Steps))
 	logger.Info("automation", msg)
 	return RunAutomationResponse{Success: true, Message: msg}
 }
 
 // TestAutomation starts the browser if needed, navigates to the platform,
 // executes the automation via chromedp, waits 5 seconds, then cleans up.
-func (a *App) TestAutomation(platformID, id string) RunAutomationResponse {
+func (a *App) TestAutomation(platformID, id string, opts RunOptions) RunAutomationResponse {
 	if !safePlatformIDPattern.MatchString(platformID) {
 		return RunAutomationResponse{Success: false, Message: "invalid platform ID"}
 	}
@@ -788,6 +827,15 @@ func (a *App) TestAutomation(platformID, id string) RunAutomationResponse {
 	cfg, err := a.findAutomation(platformID, id)
 	if err != nil {
 		return RunAutomationResponse{Success: false, Message: err.Error()}
+	}
+
+	plan, err := a.resolver.PreparePlan(cfg, planner.RunOptions{Vars: opts.Vars, ProfileID: opts.ProfileID})
+	if err != nil {
+		return RunAutomationResponse{Success: false, Message: fmt.Sprintf("prepare plan: %v", err)}
+	}
+	for _, w := range plan.Warnings {
+		a.emitRunWarning(cfg.ID, cfg.Name, w)
+		logger.Info("automation", "plan warning: "+w)
 	}
 
 	// Auto-start browser if not running.
@@ -827,12 +875,12 @@ func (a *App) TestAutomation(platformID, id string) RunAutomationResponse {
 	time.Sleep(3 * time.Second)
 
 	// Execute all steps.
-	logger.Info("automation", fmt.Sprintf("Testing %q (%d steps) for %s", cfg.Name, len(cfg.Steps), platformID))
+	logger.Info("automation", fmt.Sprintf("Testing %q (%d steps) for %s", cfg.Name, len(plan.Steps), platformID))
 	var stepErr error
-	for i, step := range cfg.Steps {
-		if err := a.executeStep(ctx, i, len(cfg.Steps), step); err != nil {
+	for i, step := range plan.Steps {
+		if err := a.executeStep(ctx, i, len(plan.Steps), step); err != nil {
 			stepErr = err
-			logger.Error("automation", fmt.Sprintf("step %d/%d failed (%s): %v", i+1, len(cfg.Steps), step.Action, err))
+			logger.Error("automation", fmt.Sprintf("step %d/%d failed (%s): %v", i+1, len(plan.Steps), step.Action, err))
 			break
 		}
 	}
@@ -851,7 +899,7 @@ func (a *App) TestAutomation(platformID, id string) RunAutomationResponse {
 	if stepErr != nil {
 		return RunAutomationResponse{Success: false, Message: stepErr.Error()}
 	}
-	msg := fmt.Sprintf("Test '%s' completed successfully (%d steps)", cfg.Name, len(cfg.Steps))
+	msg := fmt.Sprintf("Test '%s' completed successfully (%d steps)", cfg.Name, len(plan.Steps))
 	logger.Info("automation", msg)
 	return RunAutomationResponse{Success: true, Message: msg}
 }
@@ -912,6 +960,21 @@ type runStepEvent struct {
 
 func (a *App) emitRunStep(ev runStepEvent) {
 	wailsRuntime.EventsEmit(a.getCtx(), "run.step", ev)
+}
+
+// emitRunWarning surfaces a planner warning over the run.step topic with
+// kind:"warning". Phase 5 will persist these into the run journal; for now
+// the live-strip and chat-bus consumers see them.
+func (a *App) emitRunWarning(automationID, automationName, msg string) {
+	if a.getCtx == nil {
+		return
+	}
+	wailsRuntime.EventsEmit(a.getCtx(), "run.step", map[string]any{
+		"automationId":   automationID,
+		"automationName": automationName,
+		"kind":           "warning",
+		"message":        msg,
+	})
 }
 
 // beginRun stashes the cancel func and automation identity so the visibility

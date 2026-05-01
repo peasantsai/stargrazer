@@ -70,7 +70,15 @@ func TestRunStep_PropagatesHandlerError(t *testing.T) {
 }
 
 func TestEveryActionConstantHasRegisteredHandler(t *testing.T) {
+	// ActionTemplate is a planner-level sentinel; the resolver inlines it
+	// before the executor sees the step. No browser handler exists for it.
+	plannerOnly := map[automation.Action]bool{
+		automation.ActionTemplate: true,
+	}
 	for _, a := range automation.AllActions() {
+		if plannerOnly[a] {
+			continue
+		}
 		if _, ok := lookupHandlerForTest(a); !ok {
 			t.Errorf("Action %q has no registered StepHandler", a)
 		}

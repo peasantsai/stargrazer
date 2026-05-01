@@ -6,9 +6,56 @@ import (
 	"testing"
 	"time"
 
+	"stargrazer/internal/automation"
 	"stargrazer/internal/browser"
 	"stargrazer/internal/config"
+	"stargrazer/internal/db/dbtest"
+	"stargrazer/internal/planner"
+	"stargrazer/internal/profile"
+	"stargrazer/internal/recording"
+	"stargrazer/internal/social"
+	"stargrazer/internal/template"
 )
+
+// stubResolver records that PreparePlan was invoked and returns a canned plan.
+type stubResolver struct {
+	called bool
+	plan   *planner.Plan
+	err    error
+}
+
+func (s *stubResolver) PreparePlan(a *automation.Config, opts planner.RunOptions) (*planner.Plan, error) {
+	s.called = true
+	if s.plan != nil {
+		return s.plan, s.err
+	}
+	return &planner.Plan{Steps: a.Steps}, s.err
+}
+
+type appOption func(*App)
+
+func withResolver(r planner.Resolver) appOption {
+	return func(a *App) { a.resolver = r }
+}
+
+func newAppForTest(t *testing.T, opts ...appOption) *App {
+	t.Helper()
+	db := dbtest.NewMemDB(t)
+	a := NewApp(
+		automation.NewSQLiteRepo(db),
+		social.NewSQLiteSessionRepo(db),
+		nil,
+		browser.GetInstance(),
+		template.NewSQLiteRepo(db),
+		profile.NewSQLiteRepo(db),
+		recording.NewSQLiteRepo(db),
+		planner.NewResolver(template.NewSQLiteRepo(db), profile.NewSQLiteRepo(db)),
+	)
+	for _, o := range opts {
+		o(a)
+	}
+	return a
+}
 
 // --- extractUsernameFromCookies ---
 
@@ -253,4 +300,29 @@ func TestToBrowserConfigResponseEmptyFlags(t *testing.T) {
 	if resp.ExtraFlags == nil {
 		t.Error("expected non-nil ExtraFlags")
 	}
+}
+
+func TestRunAutomation_CallsPlannerBeforeExecutor(t *testing.T) {
+	stub := &stubResolver{
+		plan: &planner.Plan{
+			Steps: []automation.Step{{Action: automation.ActionWait, Value: "10"}},
+		},
+	}
+	app := newAppForTest(t, withResolver(stub))
+	saved := app.SaveAutomation("facebook", AutomationPayload{
+		Name: "test",
+		Steps: []AutomationStepPayload{
+			{Action: string(automation.ActionWait), Value: "10"},
+		},
+	})
+	if saved.ID == "" {
+		t.Fatalf("SaveAutomation did not assign ID; got %+v", saved)
+	}
+	res := app.RunAutomation("facebook", saved.ID, RunOptions{Vars: map[string]any{"caption": "x"}})
+	if !stub.called {
+		t.Fatal("planner.PreparePlan was not invoked")
+	}
+	// Browser is not running in tests; expect the run to fail at that gate
+	// AFTER the resolver is invoked (the assertion above is the contract).
+	_ = res
 }

@@ -9,8 +9,12 @@ import (
 	"stargrazer/internal/config"
 	"stargrazer/internal/db"
 	"stargrazer/internal/db/backfill"
+	"stargrazer/internal/planner"
+	"stargrazer/internal/profile"
+	"stargrazer/internal/recording"
 	"stargrazer/internal/scheduler"
 	"stargrazer/internal/social"
+	"stargrazer/internal/template"
 
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
@@ -43,11 +47,15 @@ func main() {
 	autoRepo := automation.NewSQLiteRepo(sqlDB)
 	sessRepo := social.NewSQLiteSessionRepo(sqlDB)
 	schedRepo := scheduler.NewSQLiteRepo(sqlDB)
+	tmplRepo := template.NewSQLiteRepo(sqlDB)
+	profRepo := profile.NewSQLiteRepo(sqlDB)
+	recRepo := recording.NewSQLiteRepo(sqlDB)
+	resolver := planner.NewResolver(tmplRepo, profRepo)
 	browserMgr := browser.GetInstance()
 	sched := scheduler.GetInstance(browserMgr, sessRepo, schedRepo)
 
 	win := config.GetWindow()
-	app := NewApp(autoRepo, sessRepo, sched, browserMgr)
+	app := NewApp(autoRepo, sessRepo, sched, browserMgr, tmplRepo, profRepo, recRepo, resolver)
 
 	err = wails.Run(&options.App{
 		Title:     win.Title,
